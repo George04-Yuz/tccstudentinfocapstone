@@ -50,6 +50,8 @@ import {
 import { initialInstructors, initialDepartmentSchedules, initialNewsItems } from './data/mockData';
 import { initTheme } from './utils/theme';
 import { loadStaffProfile, saveStaffProfile } from './utils/staffProfiles';
+import { useSharedAppState } from './services/useSharedAppState';
+import { apiUrl } from './services/apiUrl';
 
 export default function App() {
   // App Global State
@@ -61,16 +63,19 @@ export default function App() {
   const [isOpenSidebarMobile, setIsOpenSidebarMobile] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Data Collections
-  const [students, setStudents] = useState<Student[]>(initialStudents);
-  const [courses, setCourses] = useState<Course[]>(initialCourses);
-  const [instructors, setInstructors] = useState<Instructor[]>(initialInstructors);
-  const [grades, setGrades] = useState<GradeItem[]>(initialGrades);
-  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(initialAttendance);
-  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(initialAuditLogs);
-  const [notifications, setNotifications] = useState<PushNotification[]>(initialNotifications);
-  const [newsList, setNewsList] = useState<NewsItem[]>(initialNewsItems);
-  const [permissions, setPermissions] = useState<Record<string, RolePermissions>>(defaultRolePermissions);
+  const sharedAppState = useSharedAppState({
+    students: initialStudents,
+    courses: initialCourses,
+    instructors: initialInstructors,
+    grades: initialGrades,
+    attendanceRecords: initialAttendance,
+    auditLogs: initialAuditLogs,
+    notifications: initialNotifications,
+    newsList: initialNewsItems,
+    permissions: defaultRolePermissions,
+  });
+  const { students, courses, instructors, grades, attendanceRecords, auditLogs, notifications, newsList, permissions } = sharedAppState.state;
+  const { setStudents, setCourses, setInstructors, setGrades, setAttendanceRecords, setAuditLogs, setNotifications, setNewsList, setPermissions } = sharedAppState.setters;
 
   // Modal Controls
   const [showNotifDrawer, setShowNotifDrawer] = useState(false);
@@ -126,27 +131,18 @@ export default function App() {
 
   const userPermissions = currentUser ? permissions[currentUser.role] || defaultRolePermissions[currentUser.role] : defaultRolePermissions.Faculty;
 
-  // Real-time Cloud Sync Trigger
-  const handleForceSync = () => {
+  const handleForceSync = async () => {
     setIsSyncing(true);
-    setTimeout(() => {
+    try {
+      const response = await fetch(apiUrl('health'), { cache: 'no-store' });
+      if (!response.ok) throw new Error(`Health check returned ${response.status}`);
+      const health = await response.json();
+      addAuditEntry('SERVER_HEALTH_CHECK', `Server health check succeeded (${health.version || 'version unavailable'})`);
+    } catch {
+      addAuditEntry('SERVER_HEALTH_CHECK_FAILED', 'Server health check did not receive a successful response');
+    } finally {
       setIsSyncing(false);
-      // Append sync audit record
-      const syncAudit: AuditLogEntry = {
-        id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-        timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
-        userId: currentUser?.id || 'sys',
-        userName: currentUser?.name || 'System Auto-Sync',
-        userRole: currentUser?.role || 'Admin',
-        action: 'CROSS_DEPT_CLOUD_SYNC',
-        details: 'Manual cross-department cloud data synchronization executed across all nodes',
-        department: (selectedDepartment === 'All Departments' ? 'Computer Science' : selectedDepartment) as any,
-        ipAddress: '192.168.10.1',
-        severity: 'Info',
-        hash: `SHA256-SYNC-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
-      };
-      setAuditLogs((prev) => [syncAudit, ...prev]);
-    }, 1200);
+    }
   };
 
   // Handlers for Gradebook
@@ -212,7 +208,7 @@ export default function App() {
       userRole: currentUser?.role || 'Faculty',
       action,
       details,
-      department: currentUser?.department || 'Computer Science',
+      department: currentUser?.department || 'BS Information Technology',
       ipAddress: '192.168.10.45',
       severity: action.includes('RISK') ? 'Warning' : 'Info',
       hash: `SHA256-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
@@ -292,7 +288,7 @@ export default function App() {
           addAuditEntry('MFA_LOGIN_SUCCESS', `User ${authenticatedUser.name} logged in with verified email OTP code`);
 
           // Auto-detect and filter by department based on profile role and department
-          if (user.role === 'Admin') {
+          if (authenticatedUser.role === 'Admin') {
             setSelectedDepartment('All Departments');
           } else if (authenticatedUser.department) {
             setSelectedDepartment(authenticatedUser.department);
@@ -367,8 +363,6 @@ export default function App() {
           addAuditEntry('USER_LOGOUT', 'User signed out of session');
         }}
         onToggleSidebarMobile={() => setIsOpenSidebarMobile(!isOpenSidebarMobile)}
-        onForceSync={handleForceSync}
-        isSyncing={isSyncing}
         onOpenAiAssistant={() => setShowAiModal(true)}
         onOpenApkModal={() => setShowApkModal(true)}
         students={students}
@@ -480,6 +474,7 @@ export default function App() {
               attendanceRecords={attendanceRecords}
               currentLang={currentLang}
               selectedDepartment={selectedDepartment}
+              syncStatus={sharedAppState.syncStatus}
               onRecordAttendance={handleRecordAttendance}
             />
           )}
@@ -519,9 +514,9 @@ export default function App() {
 
           {currentUser?.role !== 'Student' && activeTab === 'monitoring' && (
             <RealTimeMonitoring
-              currentLang={currentLang}
               onForceSync={handleForceSync}
               isSyncing={isSyncing}
+              syncStatus={sharedAppState.syncStatus}
             />
           )}
 

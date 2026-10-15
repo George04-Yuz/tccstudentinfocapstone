@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Sparkles, RefreshCw, Send, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { apiUrl } from '../services/apiUrl';
 
 interface AIAssistantModalProps {
   isOpen: boolean;
@@ -21,7 +22,7 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({ isOpen, onCl
     setResponse(null);
 
     try {
-      const res = await fetch('/api/ai/analyze-performance', {
+      const res = await fetch(apiUrl('ai/analyze-performance'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

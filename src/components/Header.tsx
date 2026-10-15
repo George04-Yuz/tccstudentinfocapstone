@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { User, Language, Student, ThemeMode } from '../types';
 import { t } from '../utils/i18n';
 import { getStoredTheme, saveTheme } from '../utils/theme';
+import { apiUrl } from '../services/apiUrl';
 import {
   ShieldCheck,
   RefreshCw,
@@ -30,8 +31,6 @@ interface HeaderProps {
   onOpenLogin?: () => void;
   onLogout: () => void;
   onToggleSidebarMobile: () => void;
-  onForceSync: () => void;
-  isSyncing: boolean;
   onOpenAiAssistant?: () => void;
   onOpenApkModal?: () => void;
   students?: Student[];
@@ -47,8 +46,6 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenLogin,
   onLogout,
   onToggleSidebarMobile,
-  onForceSync,
-  isSyncing,
   students = [],
   onSelectStudent,
 }) => {
@@ -57,12 +54,44 @@ export const Header: React.FC<HeaderProps> = ({
   const [currentTheme, setCurrentTheme] = useState<ThemeMode>('system');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [serverLatency, setServerLatency] = useState<number | null>(null);
+  const [serverReachable, setServerReachable] = useState<boolean | null>(null);
+  const [currentTime, setCurrentTime] = useState(() => new Date());
   const searchRef = useRef<HTMLDivElement>(null);
   const themeMenuRef = useRef<HTMLDivElement>(null);
   const langMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setCurrentTheme(getStoredTheme());
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const updateTime = () => setCurrentTime(new Date());
+    const checkServer = async () => {
+      const startedAt = performance.now();
+      try {
+        const response = await fetch(apiUrl('health'), { cache: 'no-store' });
+        if (!response.ok) throw new Error(`Health check returned ${response.status}`);
+        if (!isMounted) return;
+        setServerLatency(Math.round(performance.now() - startedAt));
+        setServerReachable(true);
+      } catch {
+        if (!isMounted) return;
+        setServerLatency(null);
+        setServerReachable(false);
+      }
+    };
+
+    updateTime();
+    void checkServer();
+    const clockInterval = setInterval(updateTime, 1000);
+    const healthInterval = setInterval(() => void checkServer(), 15000);
+    return () => {
+      isMounted = false;
+      clearInterval(clockInterval);
+      clearInterval(healthInterval);
+    };
   }, []);
 
   const handleSelectTheme = (mode: ThemeMode) => {
@@ -89,7 +118,7 @@ export const Header: React.FC<HeaderProps> = ({
   const searchResults = searchQuery.trim()
     ? students
         .filter((s) => {
-          if (currentUser?.role && currentUser.role !== 'Admin' && currentUser.department) {
+          if (currentUser?.role && currentUser.role !== 'Admin' && currentUser.role !== 'Registrar' && currentUser.department) {
             if (s.department !== currentUser.department) return false;
           }
           return (
@@ -242,14 +271,14 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center space-x-2 shrink-0">
           {/* Latency Pill */}
           <div className="hidden sm:flex items-center space-x-1 px-2.5 py-1 bg-white dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700 text-[11px] font-mono text-slate-600 dark:text-slate-300 shadow-xs">
-            <Wifi className="w-3 h-3 text-emerald-500" />
-            <span>175ms</span>
+            <Wifi className={`w-3 h-3 ${serverReachable === false ? 'text-rose-500' : 'text-emerald-500'}`} />
+            <span>{serverLatency === null ? (serverReachable === false ? 'Offline' : 'Checking') : `${serverLatency}ms`}</span>
           </div>
 
           {/* Live Date / Time Badge */}
           <div className="hidden md:flex items-center space-x-1 px-3 py-1 bg-white dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700 text-[11px] font-medium text-slate-600 dark:text-slate-300 shadow-xs">
             <Clock className="w-3 h-3 text-slate-400" />
-            <span>Sat • Aug 15, 1:36:23 PM</span>
+            <span>{currentTime.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>
           </div>
 
 

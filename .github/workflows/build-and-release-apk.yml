@@ -43,6 +43,9 @@ jobs:
       - name: Install Node Dependencies
         run: npm install --legacy-peer-deps
 
+      - name: Type Check Web Application
+        run: npm run lint
+
       - name: Build Web Application
         run: npm run build
 
@@ -136,7 +139,7 @@ jobs:
           fi
 
           # Only restore for release builds (avoid failing debug runs)
-          if [ "${{ github.event.inputs.build_type }}" != "release" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.build_type }}" = "debug" ]; then
             echo "Debug build selected; skipping keystore restoration."
             exit 0
           fi
@@ -144,7 +147,7 @@ jobs:
           echo "Restoring keystore from secret..."
           mkdir -p "$GITHUB_WORKSPACE/android/app"
 
-          CLEAN_B64="$(printf '\%s' "$RELEASE_STORE_FILE_B64" | tr -d '\r\n')"
+          CLEAN_B64="$(printf '%s' "$RELEASE_STORE_FILE_B64" | tr -d '\r\n')"
 
           # Strip accidental surrounding quotes if they were included in the secret value.
           if [ "${CLEAN_B64:0:1}" = '"' ] && [ "${CLEAN_B64: -1}" = '"' ]; then
@@ -154,13 +157,13 @@ jobs:
             CLEAN_B64="${CLEAN_B64:1:${#CLEAN_B64}-2}"
           fi
 
-          if ! printf '%s' "$CLEAN_B64" \vert{} grep -Eq '^[A-Za-z0-9+/=]+$'; then
+          if ! printf '%s' "$CLEAN_B64" | grep -Eq '^[A-Za-z0-9+/=]+$'; then
             echo "ERROR: RELEASE_STORE_FILE_B64 is malformed. Ensure it is a single-line base64 string of the .keystore file with no quotes or extra whitespace."
             echo "Tip: generate it with: base64 --wrap=0 release.keystore (Linux) or openssl base64 -A -in release.keystore (macOS)."
             exit 1
           fi
 
-          printf '%s' "$CLEAN_B64" \vert{} base64 --decode > "$GITHUB_WORKSPACE/android/app/release.keystore" || {
+          printf '%s' "$CLEAN_B64" | base64 --decode > "$GITHUB_WORKSPACE/android/app/release.keystore" || {
             echo "ERROR: Keystore base64 decode failed. Ensure RELEASE_STORE_FILE_B64 contains a single-line base64 string of the .keystore file with no quotes."
             exit 1
           }
@@ -180,13 +183,32 @@ jobs:
       - name: Build APK with Gradle
         run: |
           cd android
-          if [ "${{ github.event.inputs.build_type }}" = "debug" ]; then
+          BUILD_TYPE="${{ github.event.inputs.build_type }}"
+          if [ -z "$BUILD_TYPE" ]; then
+            if [[ "$GITHUB_REF_NAME" == v* ]] || [ "${{ github.event_name }}" = "release" ]; then
+              BUILD_TYPE="release"
+            else
+              BUILD_TYPE="release"
+            fi
+          fi
+
+          BUILD_VERSION_NAME="${{ github.event.inputs.tag_name }}"
+          if [ -z "$BUILD_VERSION_NAME" ]; then
+            if [[ "$GITHUB_REF_NAME" == v* ]]; then
+              BUILD_VERSION_NAME="$GITHUB_REF_NAME"
+            else
+              BUILD_VERSION_NAME="1.0.$GITHUB_RUN_NUMBER"
+            fi
+          fi
+          BUILD_VERSION_CODE="$GITHUB_RUN_NUMBER"
+
+          if [ "$BUILD_TYPE" = "debug" ]; then
             echo "Building Debug APK..."
-            ./gradlew assembleDebug --stacktrace
+            ./gradlew assembleDebug --stacktrace -PVERSION_CODE="$BUILD_VERSION_CODE" -PVERSION_NAME="$BUILD_VERSION_NAME"
             APK_PATH=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
           else
             echo "Building Release APK..."
-            ./gradlew assembleRelease --stacktrace
+            ./gradlew assembleRelease --stacktrace -PVERSION_CODE="$BUILD_VERSION_CODE" -PVERSION_NAME="$BUILD_VERSION_NAME"
             APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
           fi
 
@@ -217,13 +239,13 @@ jobs:
           elif [ -n "${{ github.event.release.tag_name }}" ]; then
             TAG="${{ github.event.release.tag_name }}"
           else
-            TAG="v1.0.0-$(date +'%Y%m%d%H%M')"
+            TAG="v1.0.${GITHUB_RUN_NUMBER}"
           fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Publish APK to GitHub Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.build_type == 'release')
         with:
           tag_name: ${{ steps.release_tag.outputs.tag }}
           name: "Torres Capitol College SIS ${{ steps.release_tag.outputs.tag }}"

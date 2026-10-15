@@ -1,3 +1,5 @@
+import { apiUrl } from './apiUrl';
+
 export interface SendEmailOptions {
   to: string;
   name?: string;
@@ -10,7 +12,6 @@ export interface SendEmailResult {
   delivered: boolean;
   previewUrl?: string | false;
   smtpConfigured: boolean;
-  code: string;
   errorType?: 'network_error' | 'verification_error' | 'throttled';
   error?: string;
 }
@@ -65,14 +66,13 @@ async function processQueue() {
         message: `Security verification code sent to ${cleanEmail}. Please wait ${remainingSecs}s before requesting another code.`,
         delivered: true,
         smtpConfigured: true,
-        code: '',
         errorType: 'throttled',
       });
       continue;
     }
 
     try {
-      const response = await fetch('/api/send-verification-code', {
+      const response = await fetch(apiUrl('send-verification-code'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: cleanEmail, name }),
@@ -81,14 +81,13 @@ async function processQueue() {
       const data = await response.json();
 
       if (!response.ok) {
-        // Fallback gracefully on fetch or gateway error to Sandbox mode, preventing blocking Network Error screens
-        console.warn('Backend server returned non-OK response, falling back to secure sandbox:', response.status);
+        console.warn('Backend server returned non-OK response:', response.status);
         resolve({
-          success: true,
-          message: '[SMTP Offline Mode] Unable to connect to the primary email gateway. Secure sandbox mode active. Your verification code is: 123456',
+          success: false,
+          message: 'Unable to send a verification code. Please try again later.',
           delivered: false,
           smtpConfigured: false,
-          code: '123456',
+          errorType: response.status >= 500 ? 'network_error' : 'verification_error',
         });
       } else {
         dispatchLockMap.set(cleanEmail, Date.now());
@@ -98,13 +97,13 @@ async function processQueue() {
         });
       }
     } catch (err: any) {
-      console.warn('Client sendEmailOtpApi fetch connection/offline exception, falling back to secure sandbox:', err);
+      console.warn('Client sendEmailOtpApi fetch connection error:', err);
       resolve({
-        success: true,
-        message: '[SMTP Offline Mode] Connection timed out or server unreachable. Secure sandbox mode active. Your verification code is: 123456',
+        success: false,
+        message: 'Unable to connect to the verification server. Please try again later.',
         delivered: false,
         smtpConfigured: false,
-        code: '123456',
+        errorType: 'network_error',
       });
     }
   }
@@ -155,7 +154,7 @@ export async function sendEmailOtpApi(
  */
 export async function verifyEmailOtpApi(email: string, code: string): Promise<VerifyOtpResult> {
   try {
-    const response = await fetch('/api/verify-code', {
+    const response = await fetch(apiUrl('verify-code'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, code }),
@@ -194,7 +193,7 @@ export async function verifyEmailOtpApi(email: string, code: string): Promise<Ve
  */
 export async function checkSmtpHealthApi(): Promise<{ ready: boolean; user: string; error?: string }> {
   try {
-    const response = await fetch('/api/smtp-status');
+    const response = await fetch(apiUrl('smtp-status'));
     const data = await response.json();
     return data.smtp || { ready: false, user: '' };
   } catch (err) {

@@ -7,7 +7,7 @@ export const initialUsers: User[] = [
   {
     id: 'usr-1',
     name: 'Princess Jean Nebria Monsanto',
-    email: 'pj.monsanto@tcc.edu',
+    email: 'xernex01@gmail.com',
     role: 'Dean',
     department: 'BS Information Technology',
     avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
@@ -17,7 +17,7 @@ export const initialUsers: User[] = [
   {
     id: 'usr-2',
     name: 'Chairel Rafaila',
-    email: 'c.rafaila@tcc.edu',
+    email: 'xernex02@gmail.com',
     role: 'Faculty',
     department: 'BS Criminology',
     avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80',
@@ -27,7 +27,7 @@ export const initialUsers: User[] = [
   {
     id: 'usr-3',
     name: 'Paolo Vergara Bote',
-    email: 'p.bote@tcc.edu',
+    email: 'xernex03@gmail.com',
     role: 'Faculty',
     department: 'BS Business Administration',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
@@ -37,7 +37,7 @@ export const initialUsers: User[] = [
   {
     id: 'usr-4',
     name: 'Sarah Jenkins',
-    email: 's.jenkins@tcc.edu',
+    email: 'xernex04@gmail.com',
     role: 'Registrar',
     department: 'BS Information Technology',
     avatar: 'https://images.unsplash.com/photo-1607746882042-944635d10c46?w=150&auto=format&fit=crop&q=80',
@@ -112,7 +112,7 @@ export const defaultRolePermissions: Record<string, RolePermissions> = {
   Registrar: {
     manageGrades: false,
     approveGrades: true,
-    takeAttendance: false,
+    takeAttendance: true,
     viewAnalytics: true,
     exportReports: true,
     manageUsers: true,
@@ -138,19 +138,19 @@ export const defaultRolePermissions: Record<string, RolePermissions> = {
 };
 
 export const AUTHORIZED_STUDENT_WHITELIST = [
-  'xernex01@gmail.com',
-  'xernex02@gmail.com',
-  'xernex03@gmail.com',
-  'ksepada12@gmail.com',
+  'nftsacc1@gmail.com',
+  'nftsacc02@gmail.com',
+  'nftsacc03@gmail.com',
+  'nftsacc04@gmail.com',
 ];
 
 export const initialStudents: Student[] = [
   {
     id: 'std-101',
     studentNo: 'TCC-2024-001',
-    name: 'Xernex Student One',
-    email: 'xernex01@gmail.com',
-    personalEmail: 'xernex01@gmail.com',
+    name: 'Rafael Miguel Cruz',
+    email: 'nftsacc1@gmail.com',
+    personalEmail: 'nftsacc1@gmail.com',
     department: 'BS Information Technology',
     yearLevel: '3rd Year',
     program: 'BS Information Technology',
@@ -198,9 +198,9 @@ export const initialStudents: Student[] = [
   {
     id: 'std-102',
     studentNo: 'TCC-2024-002',
-    name: 'Xernex Student Two',
-    email: 'xernex02@gmail.com',
-    personalEmail: 'xernex02@gmail.com',
+    name: 'Sofia Marie Santos',
+    email: 'nftsacc02@gmail.com',
+    personalEmail: 'nftsacc02@gmail.com',
     department: 'BS Criminology',
     yearLevel: '3rd Year',
     program: 'BS Criminology',
@@ -248,9 +248,9 @@ export const initialStudents: Student[] = [
   {
     id: 'std-103',
     studentNo: 'TCC-2024-003',
-    name: 'Xernex Student Three',
-    email: 'xernex03@gmail.com',
-    personalEmail: 'xernex03@gmail.com',
+    name: 'Miguel Angelo Reyes',
+    email: 'nftsacc03@gmail.com',
+    personalEmail: 'nftsacc03@gmail.com',
     department: 'BS Business Administration',
     yearLevel: '2nd Year',
     program: 'BS Business Administration',
@@ -298,9 +298,9 @@ export const initialStudents: Student[] = [
   {
     id: 'std-104',
     studentNo: 'TCC-2024-004',
-    name: 'Kerry Sepada',
-    email: 'ksepada12@gmail.com',
-    personalEmail: 'ksepada12@gmail.com',
+    name: 'Isabella Mae Mendoza',
+    email: 'nftsacc04@gmail.com',
+    personalEmail: 'nftsacc04@gmail.com',
     department: 'BS Information Technology',
     yearLevel: '3rd Year',
     program: 'BS Information Technology',

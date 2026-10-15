@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Student, Course, AuditLogEntry, Language, Department, MonthlyReportConfig } from '../types';
 import { t } from '../utils/i18n';
 import { exportToCsv } from '../utils/encryption';
+import { apiUrl } from '../services/apiUrl';
 import {
   FileSpreadsheet,
   Download,
@@ -63,13 +64,13 @@ export const ReportsAndCompliance: React.FC<ReportsAndComplianceProps> = ({
 
   const studentsWithLrn = filteredStudents.filter((s) => s.lrn && s.lrn.length >= 10).length;
   const studentsWithEmergencyContact = filteredStudents.filter(
-    (s) => s.emergencyContact && s.emergencyContact.name && s.emergencyContact.mobile
+    (s) => s.emergencyContact && s.emergencyContact.name && s.emergencyContact.contactNumber
   ).length;
 
   const handleGenerateReport = async () => {
     setIsGenerating(true);
     try {
-      const res = await fetch('/api/ai/generate-compliance-report', {
+      const res = await fetch(apiUrl('ai/generate-compliance-report'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

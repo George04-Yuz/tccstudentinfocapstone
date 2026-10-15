@@ -91,7 +91,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   onSelectStudent,
 }) => {
   const isAdmin = currentUser?.role === 'Admin' || userRole === 'Admin';
-  const effectiveDept = isAdmin
+  const canViewAllDepartments = isAdmin || currentUser?.role === 'Registrar';
+  const effectiveDept = canViewAllDepartments
     ? selectedDepartment
     : (userDepartment || currentUser?.department || selectedDepartment || 'BS Information Technology');
 
@@ -1057,7 +1058,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             {/* Optional Department Filter Dropdown for Admin */}
-            {isAdmin ? (
+            {canViewAllDepartments ? (
               <div className="flex items-center space-x-2 bg-slate-800/90 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-white shadow-xs">
                 <Building2 className="w-4 h-4 text-blue-400 shrink-0" />
                 <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">Dept:</span>

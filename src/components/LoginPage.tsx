@@ -4,9 +4,9 @@ import { User, Student, Department, Language } from '../types';
 import { t } from '../utils/i18n';
 import { initialUsers, initialStudents, AUTHORIZED_STUDENT_WHITELIST } from '../data/mockData';
 import { EmailVerification } from './EmailVerification';
-import { sendEmailOtpApi } from '../services/emailService';
+import { sendEmailOtpApi, verifyEmailOtpApi } from '../services/emailService';
 import { loadStaffProfiles } from '../utils/staffProfiles';
-import { ShieldCheck, Lock, Smartphone, KeyRound, AlertCircle, ArrowRight, CheckCircle2, UserPlus, Mail, Building2, HelpCircle, GraduationCap, Upload, Camera, Copy, Check, RefreshCw, ExternalLink, Phone, MapPin, ShieldAlert, Heart } from 'lucide-react';
+import { ShieldCheck, Lock, Smartphone, KeyRound, AlertCircle, ArrowRight, CheckCircle2, UserPlus, Mail, Building2, HelpCircle, GraduationCap, Upload, Camera, RefreshCw, ExternalLink, Phone, MapPin, ShieldAlert, Heart } from 'lucide-react';
 
 interface LoginPageProps {
   onLoginSuccess: (user: User, newStudent?: Student) => void;
@@ -29,8 +29,8 @@ const defaultStudentAccounts: StudentAccountRecord[] = [
     student: initialStudents[0],
     user: {
       id: 'usr-xernex01',
-      name: 'Xernex Student One',
-      email: 'xernex01@gmail.com',
+      name: 'Rafael Miguel Cruz',
+      email: 'nftsacc1@gmail.com',
       role: 'Student',
       department: 'BS Information Technology',
       mfaEnabled: true,
@@ -44,8 +44,8 @@ const defaultStudentAccounts: StudentAccountRecord[] = [
     student: initialStudents[1],
     user: {
       id: 'usr-xernex02',
-      name: 'Xernex Student Two',
-      email: 'xernex02@gmail.com',
+      name: 'Sofia Marie Santos',
+      email: 'nftsacc02@gmail.com',
       role: 'Student',
       department: 'BS Criminology',
       mfaEnabled: true,
@@ -59,8 +59,8 @@ const defaultStudentAccounts: StudentAccountRecord[] = [
     student: initialStudents[2],
     user: {
       id: 'usr-xernex03',
-      name: 'Xernex Student Three',
-      email: 'xernex03@gmail.com',
+      name: 'Miguel Angelo Reyes',
+      email: 'nftsacc03@gmail.com',
       role: 'Student',
       department: 'BS Business Administration',
       mfaEnabled: true,
@@ -74,8 +74,8 @@ const defaultStudentAccounts: StudentAccountRecord[] = [
     student: initialStudents[3],
     user: {
       id: 'usr-ksepada12',
-      name: 'Kerry Sepada',
-      email: 'ksepada12@gmail.com',
+      name: 'Isabella Mae Mendoza',
+      email: 'nftsacc04@gmail.com',
       role: 'Student',
       department: 'BS Information Technology',
       mfaEnabled: true,
@@ -86,6 +86,31 @@ const defaultStudentAccounts: StudentAccountRecord[] = [
     passwordHash: 'Password123!',
   },
 ];
+
+const demoStudentProfileMigrations: Record<string, { name: string; email: string }> = {
+  'std-101': { name: 'Rafael Miguel Cruz', email: 'nftsacc1@gmail.com' },
+  'std-102': { name: 'Sofia Marie Santos', email: 'nftsacc02@gmail.com' },
+  'std-103': { name: 'Miguel Angelo Reyes', email: 'nftsacc03@gmail.com' },
+  'std-104': { name: 'Isabella Mae Mendoza', email: 'nftsacc04@gmail.com' },
+};
+
+const migrateDemoStudentAccount = (account: StudentAccountRecord): StudentAccountRecord => {
+  const migratedProfile = demoStudentProfileMigrations[account.student.id];
+  if (!migratedProfile) return account;
+
+  return {
+    ...account,
+    student: {
+      ...account.student,
+      ...migratedProfile,
+      personalEmail: migratedProfile.email,
+    },
+    user: {
+      ...account.user,
+      ...migratedProfile,
+    },
+  };
+};
 
 export const LoginPage: React.FC<LoginPageProps> = ({
   onLoginSuccess,
@@ -102,10 +127,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [password, setPassword] = useState('');
   const [step, setStep] = useState<'credentials' | 'mfa'>('credentials');
   const [mfaCode, setMfaCode] = useState('');
+  const [developmentMfaCode, setDevelopmentMfaCode] = useState('');
   const [timer, setTimer] = useState(60);
   const [error, setError] = useState<string | null>(null);
-  const [simulatedCode, setSimulatedCode] = useState('842901');
-  const [copiedCode, setCopiedCode] = useState(false);
 
   useEffect(() => {
     setStaffEmail(selectedUser.email);
@@ -117,7 +141,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       const saved = localStorage.getItem('tcc_registered_student_accounts');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed.map(migrateDemoStudentAccount);
       }
     } catch (e) {
       console.error(e);
@@ -189,6 +213,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotStep, setForgotStep] = useState<'email' | 'otp_reset' | 'success'>('email');
   const [forgotOtpCode, setForgotOtpCode] = useState('');
+  const [forgotDevelopmentCode, setForgotDevelopmentCode] = useState('');
   const [forgotNewPassword, setForgotNewPassword] = useState('');
   const [forgotConfirmPassword, setForgotConfirmPassword] = useState('');
   const [isForgotSending, setIsForgotSending] = useState(false);
@@ -198,7 +223,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     smtpConfigured: boolean;
     message: string;
   } | null>(null);
-  const [forgotSimulatedCode, setForgotSimulatedCode] = useState('739104');
 
   const saveStudentAccountsToStorage = (updated: StudentAccountRecord[]) => {
     setRegisteredAccounts(updated);
@@ -256,55 +280,52 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     setError(null);
     setIsSendingEmail(true);
 
-    const cleanEmail = staffEmail.trim().toLowerCase();
-    const recipientName = selectedUser.name;
-    const newCode = Math.floor(100000 + Math.random() * 900000).toString();
-    setSimulatedCode(newCode);
-    setMfaCode('');
-    setTimer(60);
-
     try {
-      const response = await fetch('/api/send-verification-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleanEmail, name: recipientName }),
-      });
-      const data = await response.json();
-      if (response.ok && data.success) {
-        setSimulatedCode(data.code || newCode);
+      const email = staffEmail.trim().toLowerCase();
+      const result = await sendEmailOtpApi(email, selectedUser.name, { forceResend: step === 'mfa' });
+      setEmailDeliveryInfo(result);
+      if (!result.success || !result.delivered) {
+        if (!import.meta.env.DEV) {
+          setError(result.message || 'Unable to deliver a verification code.');
+          return;
+        }
+        const testCode = Math.floor(100000 + Math.random() * 900000).toString();
+        setDevelopmentMfaCode(testCode);
         setEmailDeliveryInfo({
-          delivered: Boolean(data.delivered),
-          previewUrl: data.previewUrl || false,
-          smtpConfigured: Boolean(data.smtpConfigured),
-          message: data.message || `Code dispatched to ${cleanEmail}`,
+          ...result,
+          message: `Email delivery is unavailable. Local development test code: ${testCode}`,
         });
       } else {
-        const errorMsg = data.message || data.error || `[SMTP Offline Mode] Failed to connect to server. Sandbox mode active. Code: ${newCode}`;
-        setEmailDeliveryInfo({
-          delivered: false,
-          previewUrl: false,
-          smtpConfigured: false,
-          message: errorMsg,
-        });
+        setDevelopmentMfaCode('');
       }
+      setMfaCode('');
+      setTimer(60);
+      setError(null);
+      setStep('mfa');
     } catch (err) {
       console.error('Staff OTP Dispatch Error:', err);
+      setError('Unable to connect to the verification server. Please try again later.');
       setEmailDeliveryInfo({
         delivered: false,
         previewUrl: false,
         smtpConfigured: false,
-        message: `[SMTP Offline Mode] Offline simulation active. Verification code generated: ${newCode}`,
+        message: 'Email delivery is unavailable.',
       });
     } finally {
       setIsSendingEmail(false);
-      setStep('mfa');
     }
   };
 
-  const handleVerifyMfa = (e: React.FormEvent) => {
+  const handleVerifyMfa = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (mfaCode !== simulatedCode && mfaCode !== '123456') {
-      setError(`Invalid verification code. (Hint: Enter simulated code ${simulatedCode} or 123456)`);
+    if (import.meta.env.DEV && developmentMfaCode && mfaCode.trim() === developmentMfaCode) {
+      setError(null);
+      onLoginSuccess({ ...selectedUser, mfaVerified: true });
+      return;
+    }
+    const verification = await verifyEmailOtpApi(staffEmail.trim().toLowerCase(), mfaCode.trim());
+    if (!verification.verified) {
+      setError(verification.error || 'The verification code is invalid or expired.');
       return;
     }
     setError(null);
@@ -312,51 +333,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       ...selectedUser,
       mfaVerified: true,
     });
-  };
-
-  // Helper to dispatch real verification email via backend API
-  const dispatchRealVerificationEmail = async (targetEmail: string, recipientName?: string) => {
-    setIsSendingEmail(true);
-    setError(null);
-    try {
-      const response = await fetch('/api/send-verification-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: targetEmail, name: recipientName }),
-      });
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to dispatch verification email');
-      }
-
-      setSimulatedCode(data.code || '123456');
-      setEmailDeliveryInfo({
-        delivered: Boolean(data.delivered),
-        previewUrl: data.previewUrl || false,
-        smtpConfigured: Boolean(data.smtpConfigured),
-        message: data.message || `Code dispatched to ${targetEmail}`,
-      });
-      setMfaCode('');
-      setTimer(60);
-      setMode('student-otp');
-    } catch (err: any) {
-      console.error('Dispatch Email Error:', err);
-      // Fallback code so user is never blocked
-      const fallbackCode = Math.floor(100000 + Math.random() * 900000).toString();
-      setSimulatedCode(fallbackCode);
-      setEmailDeliveryInfo({
-        delivered: false,
-        previewUrl: false,
-        smtpConfigured: false,
-        message: `Email API dispatch attempted. Code generated: ${fallbackCode}`,
-      });
-      setMfaCode('');
-      setTimer(60);
-      setMode('student-otp');
-    } finally {
-      setIsSendingEmail(false);
-    }
   };
 
   // Student Sign In
@@ -664,21 +640,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     }
   };
 
-  const handleResendOtp = async () => {
-    if (pendingStudentAuth?.email) {
-      await dispatchRealVerificationEmail(
-        pendingStudentAuth.email,
-        pendingStudentAuth.registrationData?.name || pendingStudentAuth.studentAccount?.student.name
-      );
-    }
-  };
-
-  const handleCopyCode = () => {
-    navigator.clipboard.writeText(simulatedCode);
-    setCopiedCode(true);
-    setTimeout(() => setCopiedCode(false), 2000);
-  };
-
   const handleForgotEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanEmail = forgotEmail.trim().toLowerCase();
@@ -717,35 +678,46 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     try {
       const data = await sendEmailOtpApi(cleanEmail, recipientName);
 
-      if (!data.success) {
-        if (data.errorType === 'network_error') {
-          setError('Network Connection Error: Could not connect to the SMTP email server. Please check your network connection.');
-        } else {
+      setForgotDeliveryInfo(data);
+      if (!data.success || !data.delivered) {
+        if (!import.meta.env.DEV) {
           setError(data.message || 'Failed to dispatch password recovery email.');
+          return;
         }
+        const testCode = Math.floor(100000 + Math.random() * 900000).toString();
+        setForgotDevelopmentCode(testCode);
+        setForgotDeliveryInfo({
+          ...data,
+          message: `Email delivery is unavailable. Local development recovery code: ${testCode}`,
+        });
+      } else {
+        setForgotDevelopmentCode('');
       }
 
-      setForgotSimulatedCode(data.code || '123456');
-      setForgotDeliveryInfo({
-        delivered: Boolean(data.delivered),
-        previewUrl: data.previewUrl || false,
-        smtpConfigured: Boolean(data.smtpConfigured),
-        message: data.message || `Password recovery code dispatched to ${cleanEmail}`,
-      });
       setForgotOtpCode('');
       setForgotStep('otp_reset');
     } catch (err: any) {
       console.error('Forgot Password Dispatch Error:', err);
-      const fallback = Math.floor(100000 + Math.random() * 900000).toString();
-      setForgotSimulatedCode(fallback);
+      if (import.meta.env.DEV) {
+        const testCode = Math.floor(100000 + Math.random() * 900000).toString();
+        setForgotDevelopmentCode(testCode);
+        setForgotDeliveryInfo({
+          delivered: false,
+          previewUrl: false,
+          smtpConfigured: false,
+          message: `Local development recovery code: ${testCode}`,
+        });
+        setForgotOtpCode('');
+        setForgotStep('otp_reset');
+        return;
+      }
       setForgotDeliveryInfo({
         delivered: false,
         previewUrl: false,
         smtpConfigured: false,
-        message: `Password recovery verification code sent to ${cleanEmail}. Please check your email inbox.`,
+        message: 'Unable to send a verification code. Please try again later.',
       });
-      setForgotOtpCode('');
-      setForgotStep('otp_reset');
+      setError('Unable to connect to the verification server. Please try again later.');
     } finally {
       setIsForgotSending(false);
     }
@@ -773,23 +745,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       return;
     }
 
-    // Verify OTP code
-    try {
-      const response = await fetch('/api/verify-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleanEmail, code: cleanCode }),
-      });
-      const data = await response.json();
-      if (!response.ok || !data.verified) {
-        if (cleanCode !== forgotSimulatedCode && cleanCode !== '123456') {
-          setError(data.error || 'Invalid verification code. Please check your email inbox and try again.');
-          return;
-        }
-      }
-    } catch (err) {
-      if (cleanCode !== forgotSimulatedCode && cleanCode !== '123456') {
-        setError('Invalid verification code. Please check your email inbox and try again.');
+    const isDevelopmentCode = import.meta.env.DEV && forgotDevelopmentCode && cleanCode === forgotDevelopmentCode;
+    if (!isDevelopmentCode) {
+      const verification = await verifyEmailOtpApi(cleanEmail, cleanCode);
+      if (!verification.verified) {
+        setError(verification.error || 'Invalid verification code. Please check your email inbox and try again.');
         return;
       }
     }
@@ -847,6 +807,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       setForgotStep('email');
       setForgotEmail('');
       setForgotOtpCode('');
+      setForgotDevelopmentCode('');
       setForgotNewPassword('');
       setForgotConfirmPassword('');
     }, 2500);
@@ -1036,13 +997,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
                         <div>
                           <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wide">
-                            Email Address (Editable for Inbox testing)
+                            Account email
                           </label>
                           <input
                             type="email"
                             value={staffEmail}
-                            onChange={(e) => setStaffEmail(e.target.value)}
-                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                            readOnly
+                            className="w-full bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm text-slate-600 dark:text-slate-300 font-medium"
                           />
                         </div>
 
@@ -1091,9 +1052,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                             Two-Factor Authentication
                           </h3>
                           <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-xs mx-auto">
-                            We've sent an authentic verification code to your email. Please check your inbox or use the on-screen helper.
+                            A verification code was sent to your account email. Check your inbox to continue.
                           </p>
                         </div>
+
+                        {import.meta.env.DEV && developmentMfaCode && (
+                          <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-center text-xs text-amber-900">
+                            Development-only test code: <strong className="font-mono">{developmentMfaCode}</strong>
+                          </div>
+                        )}
 
                         {emailDeliveryInfo && (
                           <div className="bg-slate-900 text-slate-100 rounded-xl p-4 border border-slate-800 shadow-lg text-left">
@@ -1111,15 +1078,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                             </div>
                           </div>
                         )}
-
-                        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 p-4 text-center">
-                          <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-2">
-                            Authenticator Code
-                          </div>
-                          <div className="text-2xl font-black font-mono tracking-[0.2em] text-slate-900 dark:text-white">
-                            {simulatedCode}
-                          </div>
-                        </div>
 
                         <div>
                           <input
@@ -1175,7 +1133,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                             type="text"
                             value={regEmail}
                             onChange={(e) => setRegEmail(e.target.value)}
-                            placeholder="e.g. xernex02@gmail.com or TCC-2024-002"
+                            placeholder="e.g. nftsacc02@gmail.com or TCC-2024-002"
                             className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10 font-medium"
                           />
                           <Mail className="w-4 h-4 text-slate-400 absolute right-3 top-3.5" />
@@ -1406,7 +1364,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                               value={regEmail}
                               onChange={(e) => setRegEmail(e.target.value)}
                               className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10 font-medium"
-                              placeholder="e.g. xernex01@gmail.com"
+                              placeholder="e.g. nftsacc1@gmail.com"
                             />
                             <Mail className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
                           </div>
@@ -1825,7 +1783,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                             value={forgotEmail}
                             onChange={(e) => setForgotEmail(e.target.value)}
                             className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10 font-medium"
-                            placeholder="e.g. xernex02@gmail.com"
+                            placeholder="e.g. nftsacc02@gmail.com"
                             autoFocus
                           />
                           <Mail className="w-4 h-4 text-slate-400 absolute right-3 top-3.5" />

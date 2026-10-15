@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Student, Course, Language } from '../types';
 import { t } from '../utils/i18n';
 import { StudentInfoModal } from './StudentInfoModal';
+import { apiUrl } from '../services/apiUrl';
 import {
   BarChart3,
   TrendingUp,
@@ -79,7 +80,7 @@ export const StudentAnalytics: React.FC<StudentAnalyticsProps> = ({
     setIsGeneratingAi(true);
     setErrorAi(null);
     try {
-      const res = await fetch('/api/ai/analyze-performance', {
+      const res = await fetch(apiUrl('ai/analyze-performance'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -709,7 +710,7 @@ export const StudentAnalytics: React.FC<StudentAnalyticsProps> = ({
                       <tr key={c.code}>
                         <td className="p-2 font-mono font-bold text-blue-600">{c.code}</td>
                         <td className="p-2 text-slate-800">{c.name}</td>
-                        <td className="p-2 text-center font-mono">{c.credits}</td>
+                        <td className="p-2 text-center font-mono">{c.units ?? '—'}</td>
                         <td className="p-2 text-right text-emerald-600 font-bold">Enrolled</td>
                       </tr>
                     ))}

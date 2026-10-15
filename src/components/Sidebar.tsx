@@ -79,8 +79,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'staff-profile', label: 'My Profile', icon: UserIcon, allowed: true },
     { id: 'news', label: 'News & Events', icon: Bell, allowed: true },
     { id: 'schedules', label: 'Class Schedules & Curriculum', icon: Calendar, allowed: true },
-    { id: 'gradebook', label: t(currentLang, 'gradebook'), icon: BookOpenCheck, allowed: permissions.manageGrades || permissions.approveGrades },
-    { id: 'attendance', label: t(currentLang, 'attendance'), icon: CalendarCheck, allowed: permissions.takeAttendance },
+    { id: 'gradebook', label: t(currentLang, 'gradebook'), icon: BookOpenCheck, allowed: permissions.manageGrades || permissions.approveGrades || currentUser?.role === 'Registrar' },
+    { id: 'attendance', label: t(currentLang, 'attendance'), icon: CalendarCheck, allowed: permissions.takeAttendance || currentUser?.role === 'Registrar' },
     { id: 'analytics', label: t(currentLang, 'analytics'), icon: BarChart3, allowed: permissions.viewAnalytics },
     { id: 'reports', label: t(currentLang, 'reports'), icon: FileSpreadsheet, allowed: permissions.exportReports },
     { id: 'import', label: t(currentLang, 'bulkImport'), icon: UserPlus, allowed: permissions.importStudents !== false },
@@ -191,7 +191,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           <span>Overview Dashboard</span>
                         </button>
 
-                        {permissions.manageGrades && (
+                        {(permissions.manageGrades || permissions.approveGrades || currentUser?.role === 'Registrar') && (
                           <button
                             onClick={() => handleDeptSubViewClick(dept, 'gradebook')}
                             className={`w-full flex items-center space-x-2 px-2 py-1 rounded transition ${
@@ -205,7 +205,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           </button>
                         )}
 
-                        {permissions.takeAttendance && (
+                        {(permissions.takeAttendance || currentUser?.role === 'Registrar') && (
                           <button
                             onClick={() => handleDeptSubViewClick(dept, 'attendance')}
                             className={`w-full flex items-center space-x-2 px-2 py-1 rounded transition ${

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Student, Course, AttendanceRecord, AttendanceStatus, Language } from '../types';
 import { t } from '../utils/i18n';
 import { exportToCsv } from '../utils/encryption';
@@ -22,6 +22,7 @@ interface AttendanceTrackerProps {
   attendanceRecords: AttendanceRecord[];
   currentLang: Language;
   selectedDepartment: string;
+  syncStatus: 'connecting' | 'synced' | 'syncing' | 'offline';
   onRecordAttendance: (records: AttendanceRecord[]) => void;
 }
 
@@ -31,14 +32,14 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
   attendanceRecords,
   currentLang,
   selectedDepartment,
+  syncStatus,
   onRecordAttendance,
 }) => {
   const [selectedCourseCode, setSelectedCourseCode] = useState(courses[0]?.code || 'CS-301');
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Local state for today's active register
-  const [activeRegister, setActiveRegister] = useState<Record<string, { status: AttendanceStatus; notes: string }>>(() => {
+  const buildRegister = () => {
     const initial: Record<string, { status: AttendanceStatus; notes: string }> = {};
     students.forEach((s) => {
       const existing = attendanceRecords.find(
@@ -50,7 +51,14 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
       };
     });
     return initial;
-  });
+  };
+  const [activeRegister, setActiveRegister] = useState(buildRegister);
+  const [hasSavedRegister, setHasSavedRegister] = useState(false);
+
+  useEffect(() => {
+    setActiveRegister(buildRegister());
+    setHasSavedRegister(false);
+  }, [students, attendanceRecords, selectedCourseCode, selectedDate]);
 
   const filteredStudents = students.filter((s) => {
     const matchesDept = selectedDepartment === 'All Departments' || s.department === selectedDepartment;
@@ -101,7 +109,7 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
       notes: activeRegister[s.id]?.notes || '',
     }));
     onRecordAttendance(newRecords);
-    alert('Attendance register successfully saved and synced to cloud backup!');
+    setHasSavedRegister(true);
   };
 
   const handleExportAttendanceCsv = () => {
@@ -123,33 +131,47 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
   const lateCount = filteredStudents.filter((s) => activeRegister[s.id]?.status === 'Late').length;
   const excusedCount = filteredStudents.filter((s) => activeRegister[s.id]?.status === 'Excused').length;
 
-  // Calendar Heatmap Semester Dates dataset generator (16 weeks, 5 days per week)
-  const semesterHeatmapDays = React.useMemo(() => {
-    const days = [];
-    const startDate = new Date('2026-05-04'); // Semester start
-    for (let i = 0; i < 80; i++) {
-      const d = new Date(startDate);
-      d.setDate(startDate.getDate() + Math.floor(i / 5) * 7 + (i % 5)); // skip weekends
-      const dateStr = d.toISOString().slice(0, 10);
-      
-      // Calculate attendance matching mock data
-      let rate = 92;
-      if (i % 14 === 3) rate = 68; // Absenteeism spike day
-      else if (i % 9 === 2) rate = 78;
-      else if (i % 5 === 0) rate = 98;
-      else rate = Math.min(100, Math.max(70, 88 + (i % 7) * 2 - (i % 3) * 4));
+  const semesterHeatmapDays = useMemo(() => {
+    const visibleStudentIds = new Set(filteredStudents.map((student) => student.id));
+    const days: Date[] = [];
+    const cursor = new Date();
+    cursor.setHours(12, 0, 0, 0);
+    cursor.setDate(cursor.getDate() - 1);
 
-      days.push({
-        date: dateStr,
-        dayNum: d.getDate(),
-        monthName: d.toLocaleDateString('en-US', { month: 'short' }),
-        rate,
-        absentCount: Math.round((filteredStudents.length * (100 - rate)) / 100),
-        presentCount: Math.round((filteredStudents.length * rate) / 100),
-      });
+    while (days.length < 80) {
+      if (cursor.getDay() !== 0 && cursor.getDay() !== 6) days.unshift(new Date(cursor));
+      cursor.setDate(cursor.getDate() - 1);
     }
-    return days;
-  }, [filteredStudents.length]);
+
+    return days.map((day) => {
+      const date = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+      const dayRecords = attendanceRecords.filter((record) =>
+        record.courseCode === selectedCourseCode &&
+        record.date === date &&
+        visibleStudentIds.has(record.studentId)
+      );
+      const presentCount = dayRecords.filter((record) => record.status === 'Present' || record.status === 'Late').length;
+      const absentCount = dayRecords.filter((record) => record.status === 'Absent').length;
+      const countedRecords = presentCount + absentCount;
+
+      return {
+        date,
+        dayNum: day.getDate(),
+        monthName: day.toLocaleDateString('en-US', { month: 'short' }),
+        rate: countedRecords ? Math.round((presentCount / countedRecords) * 100) : null,
+        absentCount,
+        presentCount,
+      };
+    });
+  }, [attendanceRecords, filteredStudents, selectedCourseCode]);
+
+  const syncStatusLabel = syncStatus === 'synced'
+    ? 'Synced to Neon'
+    : syncStatus === 'syncing'
+    ? 'Syncing to Neon'
+    : syncStatus === 'offline'
+    ? 'Saved locally; Neon is offline'
+    : 'Waiting for Neon connection';
 
   return (
     <div className="space-y-6 text-slate-800 dark:text-slate-100 transition-colors">
@@ -208,6 +230,11 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
             <span>{t(currentLang, 'exportCsv')}</span>
           </button>
         </div>
+        {hasSavedRegister && (
+          <p role="status" className="mt-3 text-xs font-medium text-slate-600 dark:text-slate-300">
+            Attendance register saved. {syncStatusLabel}.
+          </p>
+        )}
       </div>
 
       {/* Register Summary Counters & Batch Buttons */}
@@ -315,7 +342,9 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
 
               {semesterHeatmapDays.map((hd, idx) => {
                 const heatBg =
-                  hd.rate >= 95
+                  hd.rate === null
+                    ? 'bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-300'
+                    : hd.rate >= 95
                     ? 'bg-emerald-600 text-white'
                     : hd.rate >= 85
                     ? 'bg-emerald-400 text-slate-900'
@@ -333,10 +362,12 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
                     className={`h-9 rounded-lg p-1 flex flex-col items-center justify-between transition cursor-pointer hover:scale-105 shadow-xs ${heatBg} ${
                       isCurrentSelected ? 'ring-2 ring-blue-500 dark:ring-blue-400 ring-offset-2 dark:ring-offset-slate-900 font-black' : ''
                     }`}
-                    title={`${hd.date} (${hd.monthName} ${hd.dayNum}): ${hd.rate}% Attendance (${hd.absentCount} Absent)`}
+                    title={hd.rate === null
+                      ? `${hd.date} (${hd.monthName} ${hd.dayNum}): No attendance recorded`
+                      : `${hd.date} (${hd.monthName} ${hd.dayNum}): ${hd.rate}% attendance (${hd.absentCount} absent)`}
                   >
                     <span className="text-[9px] opacity-80">{hd.dayNum}</span>
-                    <span className="text-[10px] font-bold">{hd.rate}%</span>
+                    <span className="text-[10px] font-bold">{hd.rate === null ? '—' : `${hd.rate}%`}</span>
                   </button>
                 );
               })}

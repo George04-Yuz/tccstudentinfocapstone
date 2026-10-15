@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { Student, Course, GradeItem, Language, User } from '../types';
+import { AssessmentTerm, Student, Course, GradeItem, Language, User } from '../types';
 import { t } from '../utils/i18n';
 import { exportToCsv } from '../utils/encryption';
 import { percentageToPhGrade, ASSESSMENT_TERMS } from '../utils/philippineGrading';
@@ -66,7 +66,14 @@ export const Gradebook: React.FC<GradebookProps> = ({
   onAddGrade,
   onApproveGrades,
 }) => {
-  const [selectedCourseCode, setSelectedCourseCode] = useState(courses[0]?.code || 'IT-301');
+  const gradebookDepartment = currentUser?.role === 'Admin'
+    ? selectedDepartment
+    : currentUser?.department || selectedDepartment;
+  const availableCourses = useMemo(
+    () => courses.filter((course) => gradebookDepartment === 'All Departments' || course.department === gradebookDepartment),
+    [courses, gradebookDepartment]
+  );
+  const [selectedCourseCode, setSelectedCourseCode] = useState(availableCourses[0]?.code || '');
   const [searchQuery, setSearchQuery] = useState('');
   const [editingGradeId, setEditingGradeId] = useState<string | null>(null);
   const [editScore, setEditScore] = useState<number>(0);
@@ -78,31 +85,69 @@ export const Gradebook: React.FC<GradebookProps> = ({
 
   // New grade modal state
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newStudentId, setNewStudentId] = useState(students[0]?.id || 'std-101');
+  const [newStudentId, setNewStudentId] = useState('');
   const [newCategory, setNewCategory] = useState<'Assignments' | 'Quizzes' | 'Midterm' | 'Final Exam' | 'Laboratory'>('Assignments');
+  const [newTerm, setNewTerm] = useState<AssessmentTerm>('Prelim');
   const [newScore, setNewScore] = useState(85);
   const [newMaxScore, setNewMaxScore] = useState(100);
   const [newFeedback, setNewFeedback] = useState('');
 
-  const currentCourse = courses.find((c) => c.code === selectedCourseCode) || courses[0];
+  const currentCourse = availableCourses.find((course) => course.code === selectedCourseCode) || availableCourses[0];
 
   const filteredStudents = students.filter((s) => {
-    const matchesDept = selectedDepartment === 'All Departments' || s.department === selectedDepartment;
+    const matchesDept = gradebookDepartment === 'All Departments' || s.department === gradebookDepartment;
     const matchesSearch =
       s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.studentNo.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesDept && matchesSearch;
   });
 
+  useEffect(() => {
+    if (!availableCourses.some((course) => course.code === selectedCourseCode)) {
+      setSelectedCourseCode(availableCourses[0]?.code || '');
+    }
+  }, [availableCourses, selectedCourseCode]);
+
+  useEffect(() => {
+    if (!filteredStudents.some((student) => student.id === newStudentId)) {
+      setNewStudentId(filteredStudents[0]?.id || '');
+    }
+  }, [filteredStudents, newStudentId]);
+
   const getStudentGrades = (studentId: string) => {
     return grades.filter((g) => g.studentId === studentId && g.courseCode === selectedCourseCode);
+  };
+
+  const getTermGrade = (studentGrades: GradeItem[], term: AssessmentTerm) => {
+    const termGrades = studentGrades.filter(
+      (grade) => (grade.term || 'Prelim') === term && grade.maxScore > 0 && grade.weight > 0
+    );
+    if (termGrades.length === 0) return null;
+    const totalWeight = termGrades.reduce((total, grade) => total + grade.weight, 0);
+    if (totalWeight === 0) return null;
+    const score = termGrades.reduce(
+      (total, grade) => total + (grade.score / grade.maxScore) * grade.weight,
+      0
+    ) / totalWeight;
+    return {
+      score: Math.round(score * 100) / 100,
+      maxScore: 100,
+      feedback: termGrades.find((grade) => grade.feedback)?.feedback,
+      locked: termGrades.every((grade) => grade.locked),
+    };
   };
 
   const calculateStudentOverallScore = (studentId: string) => {
     const stGrades = getStudentGrades(studentId);
     if (stGrades.length === 0) return 0;
-    const total = stGrades.reduce((sum, item) => sum + (item.score / item.maxScore) * item.weight, 0);
-    return Math.min(100, Math.round(total * 10) / 10);
+    const recordedTerms = ASSESSMENT_TERMS.flatMap((term) => {
+      const termGrade = getTermGrade(stGrades, term.term);
+      return termGrade ? [{ score: termGrade.score, weight: term.weight }] : [];
+    });
+    const recordedWeight = recordedTerms.reduce((total, term) => total + term.weight, 0);
+    if (recordedWeight === 0) return 0;
+    const weightedScore = recordedTerms.reduce((total, term) => total + term.score * term.weight, 0);
+    return Math.round((weightedScore / recordedWeight) * 10) / 10;
   };
 
   const handleExportPDF = async (student: Student) => {
@@ -153,7 +198,7 @@ export const Gradebook: React.FC<GradebookProps> = ({
     
     doc.setTextColor(15, 23, 42);
     ASSESSMENT_TERMS.forEach((cat, idx) => {
-      const termGrade = stGrades.find(g => g.category === cat.term);
+      const termGrade = getTermGrade(stGrades, cat.term);
       const score = termGrade?.score ?? Math.round(overall * (1 - (idx * 0.02)));
       const max = termGrade?.maxScore ?? cat.defaultMax;
       
@@ -170,6 +215,10 @@ export const Gradebook: React.FC<GradebookProps> = ({
   };
 
   const handleSaveEdit = (grade: GradeItem) => {
+    if (!Number.isFinite(editScore) || editScore < 0 || editScore > grade.maxScore) {
+      alert(`Enter a score between 0 and ${grade.maxScore}.`);
+      return;
+    }
     onUpdateGrade({
       ...grade,
       score: editScore,
@@ -180,12 +229,17 @@ export const Gradebook: React.FC<GradebookProps> = ({
 
   const handleAddNewGradeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!Number.isFinite(newScore) || !Number.isFinite(newMaxScore) || newMaxScore <= 0 || newScore < 0 || newScore > newMaxScore) {
+      alert('Enter a score between 0 and a maximum score greater than 0.');
+      return;
+    }
     const newGradeObj: GradeItem = {
       id: `grd-${Date.now()}`,
       studentId: newStudentId,
       courseCode: selectedCourseCode,
       courseName: currentCourse.name,
       category: newCategory,
+      term: newTerm,
       score: Number(newScore),
       maxScore: Number(newMaxScore),
       weight: newCategory === 'Midterm' || newCategory === 'Final Exam' ? 30 : 15,
@@ -200,9 +254,9 @@ export const Gradebook: React.FC<GradebookProps> = ({
 
   const handleExportGradebookCsv = () => {
     // Ensure only authorized department students are exported
-    const authorizedStudents = selectedDepartment === 'All Departments' 
+    const authorizedStudents = gradebookDepartment === 'All Departments'
       ? filteredStudents 
-      : filteredStudents.filter((s) => s.department === selectedDepartment);
+      : filteredStudents.filter((s) => s.department === gradebookDepartment);
 
     const headers = [
       'Student No', 
@@ -234,7 +288,7 @@ export const Gradebook: React.FC<GradebookProps> = ({
       ];
     });
 
-    const deptTag = selectedDepartment === 'All Departments' ? 'ALL_DEPTS' : selectedDepartment.replace(/\s+/g, '_');
+    const deptTag = gradebookDepartment === 'All Departments' ? 'ALL_DEPTS' : gradebookDepartment.replace(/\s+/g, '_');
     exportToCsv(`TCC_Authorized_Grade_Roster_${selectedCourseCode}_${deptTag}`, headers, rows);
     alert(`Authorized grade roster CSV exported successfully!\n\nDepartment: ${selectedDepartment}\nTotal Exported Records: ${rows.length} students`);
   };
@@ -311,6 +365,14 @@ export const Gradebook: React.FC<GradebookProps> = ({
     ];
   })();
 
+  if (!currentCourse) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
+        No courses are available for {gradebookDepartment}.
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header Controls */}
@@ -335,7 +397,7 @@ export const Gradebook: React.FC<GradebookProps> = ({
             onChange={(e) => setSelectedCourseCode(e.target.value)}
             className="bg-slate-50 text-slate-800 text-xs font-bold rounded-xl px-3 py-2 border border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
-            {courses.map((c) => (
+            {availableCourses.map((c) => (
               <option key={c.code} value={c.code}>
                 {c.code} - {c.name}
               </option>
@@ -584,7 +646,7 @@ export const Gradebook: React.FC<GradebookProps> = ({
             </div>
 
             <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
-              {courses.map((c) => {
+              {availableCourses.map((c) => {
                 const isSelected = c.code === selectedCourseCode;
                 const isExpanded = expandedCourseCode === c.code;
 
@@ -615,7 +677,7 @@ export const Gradebook: React.FC<GradebookProps> = ({
                       <div className="flex items-center space-x-2">
                         <div className="text-right">
                           <div className="text-xs font-mono font-bold text-slate-800">
-                            {c.credits} Credits
+                            {c.units ?? '—'} Units
                           </div>
                           <div className="text-[10px] text-slate-400">
                             {c.department}
@@ -875,7 +937,7 @@ export const Gradebook: React.FC<GradebookProps> = ({
                                   <span className="text-slate-500 text-[10px]">{g.category.slice(0, 3)}:</span>
                                   <span className="font-bold text-blue-600">{g.score}/{g.maxScore}</span>
                                   {g.locked ? (
-                                    <Lock className="w-3 h-3 text-emerald-500 ml-1" title="Approved Grade" />
+                                    <Lock className="w-3 h-3 text-emerald-500 ml-1" aria-label="Approved grade" />
                                   ) : (
                                     <button
                                       onClick={() => {
@@ -971,7 +1033,7 @@ export const Gradebook: React.FC<GradebookProps> = ({
                               {/* 4 Category Breakdown Cards */}
                               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                                 {ASSESSMENT_TERMS.map((cat, idx) => {
-                                  const termGrade = stGrades.find(g => g.category === cat.term);
+                                  const termGrade = getTermGrade(stGrades, cat.term);
                                   const score = termGrade?.score ?? Math.round(overallScore * (1 - (idx * 0.02)));
                                   const status = termGrade?.locked ? 'Locked & Verified' : termGrade ? 'Graded' : 'Estimated / Pending';
                                   
@@ -1021,6 +1083,8 @@ export const Gradebook: React.FC<GradebookProps> = ({
                 <label className="block text-slate-700 mb-1 font-semibold">Score Achieved</label>
                 <input
                   type="number"
+                  min={0}
+                  max={grades.find((grade) => grade.id === editingGradeId)?.maxScore}
                   value={editScore}
                   onChange={(e) => setEditScore(Number(e.target.value))}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-blue-600 font-mono font-bold focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -1086,7 +1150,7 @@ export const Gradebook: React.FC<GradebookProps> = ({
                   onChange={(e) => setNewStudentId(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 font-medium"
                 >
-                  {students.map((s) => (
+                  {filteredStudents.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name} ({s.studentNo})
                     </option>
@@ -1101,10 +1165,24 @@ export const Gradebook: React.FC<GradebookProps> = ({
                   onChange={(e) => setNewCategory(e.target.value as any)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 font-medium"
                 >
-                  <option value="Prelim">Prelim Examination (20%)</option>
-                  <option value="Midterms">Midterms Examination (25%)</option>
-                  <option value="Semifinal">Semifinal Examination (25%)</option>
-                  <option value="Finals">Finals Examination (30%)</option>
+                  <option value="Assignments">Assignments</option>
+                  <option value="Quizzes">Quizzes</option>
+                  <option value="Midterm">Midterm</option>
+                  <option value="Final Exam">Final Exam</option>
+                  <option value="Laboratory">Laboratory</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Academic Term</label>
+                <select
+                  value={newTerm}
+                  onChange={(e) => setNewTerm(e.target.value as AssessmentTerm)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 font-medium"
+                >
+                  {ASSESSMENT_TERMS.map((term) => (
+                    <option key={term.term} value={term.term}>{term.label} ({term.weight}%)</option>
+                  ))}
                 </select>
               </div>
 
@@ -1113,6 +1191,8 @@ export const Gradebook: React.FC<GradebookProps> = ({
                   <label className="block text-slate-700 font-semibold mb-1">Score</label>
                   <input
                     type="number"
+                    min={0}
+                    max={newMaxScore}
                     value={newScore}
                     onChange={(e) => setNewScore(Number(e.target.value))}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-blue-600 font-bold font-mono"
@@ -1122,6 +1202,7 @@ export const Gradebook: React.FC<GradebookProps> = ({
                   <label className="block text-slate-700 font-semibold mb-1">Max Score</label>
                   <input
                     type="number"
+                    min={1}
                     value={newMaxScore}
                     onChange={(e) => setNewMaxScore(Number(e.target.value))}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 font-bold font-mono"

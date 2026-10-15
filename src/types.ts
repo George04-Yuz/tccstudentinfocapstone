@@ -94,6 +94,7 @@ export interface GradeItem {
   studentId: string;
   courseCode: string;
   courseName: string;
+  term?: AssessmentTerm;
   category: 'Assignments' | 'Quizzes' | 'Midterm' | 'Final Exam' | 'Laboratory';
   score: number;
   maxScore: number;

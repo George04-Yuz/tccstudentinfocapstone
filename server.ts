@@ -4,15 +4,17 @@ import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 import { sendVerificationEmail, verifySmtpConfiguration } from './src/services/serverEmailService';
+import { registerSharedAppStateApi } from './src/services/sharedAppStateApi';
 
-dotenv.config({ override: true });
-// Seamlessly load from .env.example as a fallback if .env is missing or deleted
-dotenv.config({ path: path.join(process.cwd(), '.env.example'), override: true });
+dotenv.config({ path: ['.env.local', '.env'], override: false });
+// Load blank example values only when local environment variables are not set.
+dotenv.config({ path: path.join(process.cwd(), '.env.example'), override: false });
 
 const app = express();
 const PORT = 3000;
 
 app.use(express.json({ limit: '10mb' }));
+registerSharedAppStateApi(app);
 
 // Global SMTP Server Status (populated during startup check)
 let smtpServerStatus: { ready: boolean; user: string; error?: string } = { ready: false, user: '' };
@@ -67,17 +69,24 @@ app.post('/api/send-verification-code', async (req, res) => {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = now + 10 * 60 * 1000; // 10 minutes
 
-    otpStore.set(cleanEmail, { code, expiresAt, createdAt: now, name });
-
     const result = await sendVerificationEmail({ to: cleanEmail, name, code });
 
+    if (!result.success || !result.delivered) {
+      res.status(503).json({
+        success: false,
+        message: result.message || 'Email delivery is unavailable. Please try again later.',
+      });
+      return;
+    }
+
+    otpStore.set(cleanEmail, { code, expiresAt, createdAt: now, name });
+
     res.json({
-      success: result.success,
+      success: true,
       message: result.message,
-      delivered: result.delivered,
+      delivered: true,
       expiresInSeconds: 600,
       smtpConfigured: result.smtpConfigured,
-      code: result.code,
     });
   } catch (error: any) {
     console.error('Email Dispatch Error:', error);
@@ -103,12 +112,6 @@ app.post('/api/verify-code', (req, res) => {
 
   const cleanEmail = email.trim().toLowerCase();
   const cleanCode = code.toString().trim();
-
-  // Allow standard master code 123456
-  if (cleanCode === '123456') {
-    res.json({ success: true, verified: true, message: 'Master code verified.' });
-    return;
-  }
 
   const record = otpStore.get(cleanEmail);
   if (!record) {

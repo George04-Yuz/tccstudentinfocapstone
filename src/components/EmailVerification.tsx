@@ -38,6 +38,7 @@ export const EmailVerification: React.FC<EmailVerificationProps> = ({
   const [isSending, setIsSending] = useState(false);
   const [errorState, setErrorState] = useState<{ message: string; type: 'network' | 'verification' | 'general' } | null>(null);
   const [deliveryInfo, setDeliveryInfo] = useState<SendEmailResult | null>(null);
+  const [developmentCode, setDevelopmentCode] = useState('');
   const hasDispatchedRef = useRef<boolean>(false);
 
   // Initial OTP dispatch on component mount
@@ -66,24 +67,43 @@ export const EmailVerification: React.FC<EmailVerificationProps> = ({
       const result = await sendEmailOtpApi(email, name, { forceResend });
       setDeliveryInfo(result);
 
-      if (!result.success) {
+      if (!result.success || !result.delivered) {
+        if (import.meta.env.DEV) {
+          const testCode = Math.floor(100000 + Math.random() * 900000).toString();
+          setDevelopmentCode(testCode);
+          setDeliveryInfo({ ...result, message: `Local development test code: ${testCode}` });
+          setTimer(60);
+          return;
+        }
         setErrorState({
           message: result.message || 'Verification email dispatch error.',
-          type: 'general',
+          type: result.errorType === 'network_error' ? 'network' : 'general',
         });
       } else {
+        setDevelopmentCode('');
         setTimer(60);
       }
     } catch (err: any) {
-      console.warn('Email Verification Dispatch Error, falling back to secure sandbox:', err);
+      console.warn('Email Verification Dispatch Error:', err);
+      if (import.meta.env.DEV) {
+        const testCode = Math.floor(100000 + Math.random() * 900000).toString();
+        setDevelopmentCode(testCode);
+        setDeliveryInfo({
+          success: false,
+          message: `Local development test code: ${testCode}`,
+          delivered: false,
+          smtpConfigured: false,
+        });
+        setTimer(60);
+        return;
+      }
       setDeliveryInfo({
-        success: true,
-        message: '[SMTP Offline Mode] Failed to communicate with dispatch server. Secure sandbox mode active. Your verification code is: 123456',
+        success: false,
+        message: 'Unable to send a verification code. Please try again later.',
         delivered: false,
         smtpConfigured: false,
-        code: '123456',
       });
-      setTimer(60);
+      setErrorState({ message: 'Unable to connect to the verification server. Please try again later.', type: 'network' });
     } finally {
       setIsSending(false);
     }
@@ -104,19 +124,13 @@ export const EmailVerification: React.FC<EmailVerificationProps> = ({
     setErrorState(null);
 
     try {
+      if (import.meta.env.DEV && developmentCode && cleanCode === developmentCode) {
+        onVerificationSuccess({ email, registrationData, studentAccount });
+        return;
+      }
+
       const verifyRes = await verifyEmailOtpApi(email, cleanCode);
       if (!verifyRes.verified) {
-        if (cleanCode === '123456' || verifyRes.errorType === 'network_error') {
-          // Master code bypass or silent graceful network bypass
-          console.info('Master code bypass or active network error bypass triggered.');
-          onVerificationSuccess({
-            email,
-            registrationData,
-            studentAccount,
-          });
-          return;
-        }
-
         setErrorState({
           message: verifyRes.error || 'Verification Error: The 6-digit code entered is incorrect or has expired.',
           type: 'verification',
@@ -132,13 +146,8 @@ export const EmailVerification: React.FC<EmailVerificationProps> = ({
         studentAccount,
       });
     } catch (err: any) {
-      // Gracefully authenticate on any verification exceptions to ensure the user is never stuck
-      console.warn('Silent graceful bypass triggered on verify connection exception:', err);
-      onVerificationSuccess({
-        email,
-        registrationData,
-        studentAccount,
-      });
+      console.warn('Email verification request failed:', err);
+      setErrorState({ message: 'Unable to verify the code. Check your connection and try again.', type: 'network' });
     } finally {
       setIsSubmitting(false);
     }
@@ -173,6 +182,12 @@ export const EmailVerification: React.FC<EmailVerificationProps> = ({
           <strong className="text-slate-800 dark:text-slate-200">{email}</strong>.
         </p>
       </div>
+
+      {import.meta.env.DEV && developmentCode && (
+        <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-center text-xs text-amber-900">
+          Development-only test code: <strong className="font-mono">{developmentCode}</strong>
+        </div>
+      )}
 
       {/* Distinguished Error Feedback */}
       {errorState && (

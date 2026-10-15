@@ -38,12 +38,9 @@ export async function getSmtpTransporter() {
   const port = parseInt(portStr, 10);
   const secure = port === 465;
 
-  const user = getCleanEnv('SMTP_USER', 'tcccollegecapstone@gmail.com');
-  
-  let pass = getCleanEnv('SMTP_PASS', 'tafr xgjc spwy qeuq');
-  if (!pass || pass === 'dummy11244' || pass === 'MY_SMTP_PASS' || pass === 'vrai hudp dybm jcyv') {
-    pass = 'tafr xgjc spwy qeuq';
-  }
+  const user = getCleanEnv('SMTP_USER', '');
+  let pass = getCleanEnv('SMTP_PASS', '');
+  if (!user || !pass) throw new Error('SMTP_USER and SMTP_PASS must be configured');
   // Strip all internal spaces from the App Password as Gmail SMTP requires
   pass = pass.replace(/\s+/g, '');
 
@@ -72,11 +69,14 @@ export async function getSmtpTransporter() {
  * Tests connection to the SMTP server once on boot
  */
 export async function verifySmtpConfiguration(): Promise<{ ready: boolean; user: string; error?: string }> {
-  const user = getCleanEnv('SMTP_USER', 'tcccollegecapstone@gmail.com');
+  const user = getCleanEnv('SMTP_USER', '');
   const resendApiKey = getCleanEnv('RESEND_API_KEY', '');
   if (resendApiKey && resendApiKey !== 'MY_RESEND_API_KEY') {
     console.info('✅ [Resend Web API Configured] High-priority HTTPS email delivery is active.');
     return { ready: true, user: 'Resend API Mode' };
+  }
+  if (!user || !getCleanEnv('SMTP_PASS', '')) {
+    return { ready: false, user, error: 'Email credentials are not configured.' };
   }
   try {
     const transporter = await getSmtpTransporter();
@@ -84,8 +84,8 @@ export async function verifySmtpConfiguration(): Promise<{ ready: boolean; user:
     console.info(`✅ [SMTP CONFIG VERIFIED] Successfully connected to Gmail SMTP server (${user}).`);
     return { ready: true, user };
   } catch (err: any) {
-    console.info(`ℹ️ [SMTP Status] Live email delivery is inactive for ${user}. Automatically using Secure sandbox simulator mode. (${err?.message || err})`);
-    return { ready: false, user, error: 'SMTP inactive. Secure Sandbox fallback enabled.' };
+    console.info(`ℹ️ [SMTP Status] Email delivery is unavailable for ${user}. (${err?.message || err})`);
+    return { ready: false, user, error: 'Email delivery is unavailable.' };
   }
 }
 
@@ -191,17 +191,17 @@ export async function sendVerificationEmail({ to, name, code }: SendEmailOptions
     
     if (!transporter) {
       return {
-        success: true,
+        success: false,
         message: resendErrorDetail 
           ? `[Resend Error] ${resendErrorDetail}. Please verify your Resend dashboard settings.`
-          : `A security verification code has been sent directly to ${cleanEmail}. Please check your email inbox.`,
+          : 'Email delivery is not configured. Contact the system administrator.',
         delivered: false,
         smtpConfigured: false,
         code,
       };
     }
 
-    const smtpUser = getCleanEnv('SMTP_USER', 'tcccollegecapstone@gmail.com');
+    const smtpUser = getCleanEnv('SMTP_USER', '');
     const fromAddress = getCleanEnv('SMTP_FROM', `"Torres Capitol College" <${smtpUser}>`);
 
     try {
@@ -222,13 +222,13 @@ export async function sendVerificationEmail({ to, name, code }: SendEmailOptions
         code,
       };
     } catch (sendErr: any) {
-      console.info('SMTP sendMail status: Handled invalid login fallback. (' + (sendErr?.message || sendErr) + ')');
-      const fallbackMsg = resendErrorDetail
+      console.info('SMTP sendMail failed. (' + (sendErr?.message || sendErr) + ')');
+      const failureMessage = resendErrorDetail
         ? `[Resend Error] ${resendErrorDetail}. Please verify your Resend settings.`
-        : `[SMTP Offline Mode] Connection timed out or server unreachable. Secure sandbox mode active. Your verification code is: ${code}`;
+        : 'Email delivery failed. Please try again later or contact the system administrator.';
       return {
-        success: resendErrorDetail ? false : true,
-        message: fallbackMsg,
+        success: false,
+        message: failureMessage,
         delivered: false,
         smtpConfigured: true,
         code,
@@ -236,13 +236,13 @@ export async function sendVerificationEmail({ to, name, code }: SendEmailOptions
       };
     }
   } catch (error: any) {
-    console.info('SMTP Email Service Dispatch Status: Active sandbox fallback mode. (' + (error?.message || 'SMTP dispatch failed') + ')');
-    const fallbackMsg = resendErrorDetail
+    console.info('SMTP Email Service Dispatch failed. (' + (error?.message || 'SMTP dispatch failed') + ')');
+    const failureMessage = resendErrorDetail
       ? `[Resend Error] ${resendErrorDetail}. Please verify your Resend settings.`
-      : `[SMTP Offline Mode] Connection timed out or server unreachable. Secure sandbox mode active. Your verification code is: ${code}`;
+      : 'Email delivery failed. Please try again later or contact the system administrator.';
     return {
-      success: resendErrorDetail ? false : true,
-      message: fallbackMsg,
+      success: false,
+      message: failureMessage,
       delivered: false,
       smtpConfigured: false,
       code,
