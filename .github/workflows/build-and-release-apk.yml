@@ -129,24 +129,44 @@ jobs:
           RELEASE_STORE_FILE_B64: ${{ secrets.RELEASE_STORE_FILE_B64 }}
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
         run: |
+          # If secret not provided, skip (useful for debug/testing)
           if [ -z "${RELEASE_STORE_FILE_B64}" ]; then
             echo "No RELEASE_STORE_FILE_B64 secret set; skipping keystore restore."
+            exit 0
+          fi
+
+          # Only restore for release builds (avoid failing debug runs)
+          if [ "${{ github.event.inputs.build_type }}" != "release" ]; then
+            echo "Debug build selected; skipping keystore restoration."
             exit 0
           fi
 
           echo "Restoring keystore from secret..."
           mkdir -p "$GITHUB_WORKSPACE/android/app"
 
-          # strip CR/LF/newlines then decode. Exit with a helpful message if decode fails.
-          printf '%s' "$RELEASE_STORE_FILE_B64" | tr -d '\r\n' | base64 --decode > "$GITHUB_WORKSPACE/android/app/release.keystore" || {
-            echo "ERROR: Keystore base64 decode failed. Ensure RELEASE_STORE_FILE_B64 contains a single-line base64 string of the .keystore file with no quotes.";
-            exit 1;
+          CLEAN_B64="$(printf '%s' "$RELEASE_STORE_FILE_B64" | tr -d '\r\n')"
+
+          # Strip accidental surrounding quotes if they were included in the secret value.
+          if [ "${CLEAN_B64:0:1}" = '"' ] && [ "${CLEAN_B64: -1}" = '"' ]; then
+            CLEAN_B64="${CLEAN_B64:1:${#CLEAN_B64}-2}"
+          fi
+          if [ "${CLEAN_B64:0:1}" = "'" ] && [ "${CLEAN_B64: -1}" = "'" ]; then
+            CLEAN_B64="${CLEAN_B64:1:${#CLEAN_B64}-2}"
+          fi
+
+          if ! printf '%s' "$CLEAN_B64" | grep -Eq '^[A-Za-z0-9+/=]+$'; then
+            echo "ERROR: RELEASE_STORE_FILE_B64 is malformed. Ensure it is a single-line base64 string of the .keystore file with no quotes or extra whitespace."
+            echo "Tip: generate it with: base64 --wrap=0 release.keystore (Linux) or openssl base64 -A -in release.keystore (macOS)."
+            exit 1
+          fi
+
+          printf '%s' "$CLEAN_B64" | base64 --decode > "$GITHUB_WORKSPACE/android/app/release.keystore" || {
+            echo "ERROR: Keystore base64 decode failed. Ensure RELEASE_STORE_FILE_B64 contains a single-line base64 string of the .keystore file with no quotes."
+            exit 1
           }
 
-          # point Gradle to the keystore file
           echo "RELEASE_STORE_FILE=app/release.keystore" >> "$GITHUB_WORKSPACE/android/gradle.properties"
 
-          # Optional quick verification (check the keystore can be opened with the provided password)
           if command -v keytool >/dev/null 2>&1; then
             if keytool -list -v -keystore "$GITHUB_WORKSPACE/android/app/release.keystore" -storepass "${RELEASE_STORE_PASSWORD}" >/dev/null 2>&1; then
               echo "Keystore restored and verified."
