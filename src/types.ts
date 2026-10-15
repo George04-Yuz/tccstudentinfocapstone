@@ -218,3 +218,14 @@ export interface MonthlyReportConfig {
   includeGpaDistribution: boolean;
   includeAttendanceAnalysis: boolean;
 }
+
+export interface NewsItem {
+  id: string;
+  title: string;
+  category: string;
+  date: string;
+  author: string;
+  imageUrl?: string;
+  content: string;
+}
+

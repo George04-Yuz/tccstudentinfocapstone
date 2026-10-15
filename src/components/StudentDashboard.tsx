@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, PushNotification, Student, Department, ClassScheduleItem } from '../types';
+import { User, PushNotification, Student, Department, ClassScheduleItem, NewsItem } from '../types';
 import { initialDepartmentSchedules } from '../data/curriculumData';
 import { initialStudents } from '../data/mockData';
 import jsPDF from 'jspdf';
@@ -51,6 +51,8 @@ interface StudentDashboardProps {
   activeTab?: string;
   onSelectTab?: (tab: string) => void;
   students?: Student[];
+  newsList?: NewsItem[];
+  setNewsList?: (newsList: NewsItem[]) => void;
 }
 
 type ScheduleItem = ClassScheduleItem;
@@ -311,6 +313,7 @@ const PRESET_AVATARS = [
   'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80',
   'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80',
 ];
+
 
 const SYLLABUS_DATA: Record<string, {
   code: string;
@@ -874,10 +877,13 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   activeTab: activeTabProp,
   onSelectTab,
   students = [],
+  newsList = [],
+  setNewsList,
 }) => {
-  const mapPropToTab = (tab?: string): 'schedule' | 'timetable' | 'grades' | 'attendance' | 'profile' => {
+  const mapPropToTab = (tab?: string): 'schedule' | 'timetable' | 'grades' | 'attendance' | 'profile' | 'news' => {
     if (!tab) return 'schedule';
-    if (tab === 'dashboard' || tab === 'schedule' || tab === 'news' || tab === 'admin') return 'schedule';
+    if (tab === 'dashboard' || tab === 'schedule' || tab === 'admin') return 'schedule';
+    if (tab === 'news') return 'news';
     if (tab === 'timetable') return 'timetable';
     if (tab === 'grades') return 'grades';
     if (tab === 'attendance') return 'attendance';
@@ -885,7 +891,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     return 'schedule';
   };
 
-  const [internalTab, setInternalTab] = useState<'schedule' | 'timetable' | 'grades' | 'attendance' | 'profile'>(
+  const [internalTab, setInternalTab] = useState<'schedule' | 'timetable' | 'grades' | 'attendance' | 'profile' | 'news'>(
     mapPropToTab(activeTabProp)
   );
 
@@ -897,7 +903,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
 
   const activeTab = internalTab;
 
-  const setActiveTab = (tab: 'schedule' | 'timetable' | 'grades' | 'attendance' | 'profile') => {
+  const setActiveTab = (tab: 'schedule' | 'timetable' | 'grades' | 'attendance' | 'profile' | 'news') => {
     setInternalTab(tab);
     if (onSelectTab) {
       onSelectTab(tab);
@@ -1199,15 +1205,48 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
-    if (onUpdateUser) {
-      onUpdateUser({
-        name: fullName,
-        email: instEmail,
-        avatar: avatarUrl,
-      });
+    alert('Student profile is completely locked. Once submitted, only staff and admin are able to modify or change student information.');
+  };
+
+  const [newNewsTitle, setNewNewsTitle] = useState('');
+  const [newNewsCategory, setNewNewsCategory] = useState('Institutional Policy');
+  const [newNewsDate, setNewNewsDate] = useState('First Friday of Every Month');
+  const [newNewsImage, setNewNewsImage] = useState('https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&auto=format&fit=crop&q=80');
+  const [newNewsContent, setNewNewsContent] = useState('');
+  const [newsSuccessToast, setNewsSuccessToast] = useState<string | null>(null);
+  
+  const newsPhotoInputRef = useRef<HTMLInputElement>(null);
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewNewsImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
     }
-    setProfileSuccessToast('Demographic information & avatar updated successfully!');
-    setTimeout(() => setProfileSuccessToast(null), 3500);
+  };
+
+  const handlePublishNews = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newNewsTitle || !newNewsContent) return;
+    const item: NewsItem = {
+      id: `news-${Date.now()}`,
+      title: newNewsTitle,
+      category: newNewsCategory,
+      date: newNewsDate,
+      author: currentUser.name || 'Staff Administrator',
+      imageUrl: newNewsImage,
+      content: newNewsContent,
+    };
+    if (setNewsList) {
+        setNewsList([item, ...newsList]);
+    }
+    setNewNewsTitle('');
+    setNewNewsContent('');
+    setNewNewsImage('https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&auto=format&fit=crop&q=80');
+    setNewsSuccessToast('Announcement & photo published successfully to school news feed!');
+    setTimeout(() => setNewsSuccessToast(null), 3500);
   };
 
   const handlePasswordChange = (e: React.FormEvent) => {
@@ -1773,6 +1812,15 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         </div>
       )}
 
+      {/* Locked Status Notice Banner */}
+      <div className="p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200 text-xs flex items-center space-x-3 shadow-xs">
+        <Lock className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />
+        <div>
+          <strong className="font-black uppercase tracking-wider block text-[10px] text-blue-700 dark:text-blue-400">Full Student Profile Locked (View-Only)</strong>
+          <span>Once submitted, student profile information is completely locked and cannot be changed by the student. Only staff and admin are able to modify or change student information.</span>
+        </div>
+      </div>
+
       {/* Avatar & Demographic Section */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-xs space-y-6">
         <div className="border-b border-slate-200 dark:border-slate-800 pb-4 flex items-center justify-between">
@@ -1782,13 +1830,13 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
               <span>Student Profile & Demographics</span>
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Manage your profile picture, contact details, and institutional address information.
+              Official locked student record. View-only mode active.
             </p>
           </div>
         </div>
 
-        <form onSubmit={handleSaveProfile} className="space-y-6">
-          {/* Avatar Picker */}
+        <div className="space-y-6">
+          {/* Avatar Preview */}
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide mb-3">
               Profile Avatar Image
@@ -1802,64 +1850,16 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                 />
               </div>
 
-              <div className="flex-1 space-y-3 w-full">
+              <div className="flex-1 space-y-2 w-full">
                 <div className="text-xs text-slate-500 dark:text-slate-400">
-                  Upload a profile photo or select a preset avatar / custom URL:
+                  Profile photo is locked by administrative policy.
                 </div>
-
-                <div className="flex flex-wrap items-center gap-3">
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileUpload}
-                    accept="image/*"
-                    className="hidden"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center space-x-2 shadow-sm transition cursor-pointer"
-                  >
-                    <Upload className="w-3.5 h-3.5 text-white" />
-                    <span>Upload Photo</span>
-                  </button>
-
-                  <div className="flex items-center space-x-1.5">
-                    {PRESET_AVATARS.map((url, i) => (
-                      <button
-                        type="button"
-                        key={i}
-                        onClick={() => setAvatarUrl(url)}
-                        className={`w-8 h-8 rounded-full overflow-hidden border-2 transition ${
-                          avatarUrl === url ? 'border-blue-600 ring-2 ring-blue-500/30' : 'border-slate-200 dark:border-slate-700 hover:opacity-80'
-                        }`}
-                      >
-                        <img src={url} alt="Preset" className="w-full h-full object-cover" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Policy Warning Banner */}
-                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-xs flex items-start space-x-2.5 shadow-xs">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                  <div className="space-y-0.5">
-                    <span className="font-extrabold uppercase text-[10px] tracking-wider block text-amber-700 dark:text-amber-400">
-                      Official Student Conduct Notice
-                    </span>
-                    <p className="leading-snug">
-                      <strong>Warning:</strong> Uploading inappropriate, offensive, or unauthorized photos will result in immediate account blocking or disciplinary detention.
-                    </p>
-                  </div>
-                </div>
-
                 <div className="relative">
                   <input
                     type="url"
                     value={avatarUrl}
-                    onChange={(e) => setAvatarUrl(e.target.value)}
-                    placeholder="https://example.com/my-photo.jpg"
-                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                    disabled
+                    className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs text-slate-500 dark:text-slate-400 font-mono cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -1879,52 +1879,52 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Full Name</label>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">Full Name</label>
               <input
                 type="text"
                 value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500"
+                disabled
+                className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-not-allowed"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Course & Year</label>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">Course & Year</label>
               <input
                 type="text"
                 value={courseYear}
-                onChange={(e) => setCourseYear(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs font-medium text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500"
+                disabled
+                className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs font-medium text-slate-600 dark:text-slate-300 cursor-not-allowed"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Institutional Email</label>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">Institutional Email</label>
               <input
                 type="email"
                 value={instEmail}
-                onChange={(e) => setInstEmail(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs font-mono text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500"
+                disabled
+                className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs font-mono text-slate-600 dark:text-slate-300 cursor-not-allowed"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Personal Email</label>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">Personal Email</label>
               <input
                 type="email"
                 value={personalEmail}
-                onChange={(e) => setPersonalEmail(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs font-mono text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500"
+                disabled
+                className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs font-mono text-slate-600 dark:text-slate-300 cursor-not-allowed"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Contact Number</label>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">Contact Number</label>
               <input
                 type="text"
                 value={contactNo}
-                onChange={(e) => setContactNo(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs font-mono text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500"
+                disabled
+                className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs font-mono text-slate-600 dark:text-slate-300 cursor-not-allowed"
               />
             </div>
           </div>
@@ -1940,8 +1940,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                 <input
                   type="text"
                   value={street}
-                  onChange={(e) => setStreet(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2 text-xs"
+                  disabled
+                  className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2 text-xs text-slate-600 dark:text-slate-300 cursor-not-allowed"
                 />
               </div>
               <div>
@@ -1949,8 +1949,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                 <input
                   type="text"
                   value={barangay}
-                  onChange={(e) => setBarangay(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2 text-xs"
+                  disabled
+                  className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2 text-xs text-slate-600 dark:text-slate-300 cursor-not-allowed"
                 />
               </div>
               <div>
@@ -1958,8 +1958,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                 <input
                   type="text"
                   value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2 text-xs"
+                  disabled
+                  className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2 text-xs text-slate-600 dark:text-slate-300 cursor-not-allowed"
                 />
               </div>
               <div>
@@ -1967,23 +1967,13 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                 <input
                   type="text"
                   value={`${province} ${zipCode}`}
-                  onChange={(e) => setProvince(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2 text-xs"
+                  disabled
+                  className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2 text-xs text-slate-600 dark:text-slate-300 cursor-not-allowed"
                 />
               </div>
             </div>
           </div>
-
-          <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
-            <button
-              type="submit"
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-2"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>Save Demographic Changes</span>
-            </button>
-          </div>
-        </form>
+        </div>
       </div>
 
       {/* Password & Security Section */}
@@ -2081,6 +2071,168 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
             <span>Update Account Password</span>
           </button>
         </form>
+      </div>
+    </div>
+  );
+
+  const renderNewsContent = () => (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-2 pb-2">
+        <div>
+          <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center space-x-2">
+            <Bell className="w-6 h-6 text-blue-600" />
+            <span>School News & Events</span>
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+            Official institutional announcements, event notices, and policy updates.
+          </p>
+        </div>
+      </div>
+
+      {/* Mandatory Convocation Banner */}
+      <div className="p-5 bg-amber-50 border border-amber-200 rounded-2xl flex items-start space-x-4">
+        <div className="bg-amber-100 p-2 rounded-full">
+          <AlertCircle className="w-6 h-6 text-amber-600" />
+        </div>
+        <div>
+          <h3 className="text-sm font-black text-amber-900">Mandatory Monthly Convocation Policy</h3>
+          <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+            For every First Week Of Friday Is Convocation. All College Student Should Attend. Student didn't attend will have fines for every missed attendance. Attendance scanning and ID tagging will commence at 7:30 AM at the Main Gymnasium.
+          </p>
+        </div>
+      </div>
+
+      {newsSuccessToast && (
+        <div className="p-4 bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg flex items-center space-x-2 animate-fade-in">
+          <CheckCircle2 className="w-5 h-5" />
+          <span>{newsSuccessToast}</span>
+        </div>
+      )}
+
+      {/* Staff / Admin Announcement Publishing Form */}
+      {currentUser.role !== 'Student' && (
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-xs space-y-4">
+          <h3 className="text-sm font-black text-blue-600 dark:text-blue-400 flex items-center space-x-2">
+            <Sparkles className="w-4 h-4" />
+            <span>Publish School News & Photo Announcement (Staff & Admin Only)</span>
+          </h3>
+
+          <form onSubmit={handlePublishNews} className="space-y-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Title</label>
+                <input
+                  type="text"
+                  value={newNewsTitle}
+                  onChange={(e) => setNewNewsTitle(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs font-bold"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Category</label>
+                <select
+                  value={newNewsCategory}
+                  onChange={(e) => setNewNewsCategory(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs font-bold"
+                >
+                  <option value="Institutional Policy">Institutional Policy</option>
+                  <option value="Academic Update">Academic Update</option>
+                  <option value="Accreditation">Accreditation</option>
+                  <option value="Campus Event">Campus Event</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Date</label>
+                <input
+                  type="text"
+                  value={newNewsDate}
+                  onChange={(e) => setNewNewsDate(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs font-medium"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Upload Photo</label>
+              <input
+                type="file"
+                ref={newsPhotoInputRef}
+                onChange={handleImageUpload}
+                accept="image/*"
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => newsPhotoInputRef.current?.click()}
+                className="w-full flex items-center justify-center space-x-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+              >
+                <Upload className="w-4 h-4" />
+                <span>{newNewsImage ? 'Change Photo' : 'Select Photo to Upload'}</span>
+              </button>
+              {newNewsImage && (
+                <div className="mt-2 text-[10px] text-emerald-600 font-bold">Photo selected!</div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Content</label>
+              <textarea
+                rows={3}
+                value={newNewsContent}
+                onChange={(e) => setNewNewsContent(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs font-medium"
+                required
+              />
+            </div>
+
+            <div className="flex justify-end pt-1">
+              <button
+                type="submit"
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition"
+              >
+                Publish Announcement
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* News Feed List */}
+      <div className="space-y-4">
+        {newsList.map((item) => (
+          <div key={item.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden flex flex-col md:flex-row">
+            {item.imageUrl && (
+              <div className="md:w-72 h-48 md:h-auto shrink-0 relative overflow-hidden bg-slate-100 dark:bg-slate-800">
+                <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" />
+              </div>
+            )}
+            <div className="p-6 flex-1 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase font-mono bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+                  {item.category}
+                </span>
+                <span className="text-xs font-mono text-slate-400 flex items-center space-x-1">
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>{item.date}</span>
+                </span>
+              </div>
+
+              <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
+                {item.title}
+              </h3>
+
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                {item.content}
+              </p>
+
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+                <span>Author: <strong className="text-slate-700 dark:text-slate-300">{item.author}</strong></span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-bold">Official TCC Bulletin</span>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -2273,6 +2425,18 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           <UserIcon className="w-3.5 h-3.5" />
           <span>Profile Management</span>
         </button>
+
+        <button
+          onClick={() => setActiveTab('news')}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+            activeTab === 'news'
+              ? 'bg-slate-900 text-white dark:bg-blue-600'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <Bell className="w-3.5 h-3.5 text-amber-400" />
+          <span>News & Events</span>
+        </button>
       </div>
 
       {/* Active Tab View */}
@@ -2281,6 +2445,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
       {activeTab === 'grades' && renderGradesContent()}
       {activeTab === 'attendance' && renderAttendanceContent()}
       {activeTab === 'profile' && renderProfileContent()}
+      {activeTab === 'news' && renderNewsContent()}
 
       {/* View Syllabus Modal */}
       {selectedSyllabusCode && (

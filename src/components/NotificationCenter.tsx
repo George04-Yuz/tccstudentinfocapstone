@@ -9,6 +9,7 @@ interface NotificationCenterProps {
   notifications: PushNotification[];
   onMarkAllAsRead: () => void;
   onSendCustomNotification: (notif: PushNotification) => void;
+  userRole?: string;
 }
 
 export const NotificationCenter: React.FC<NotificationCenterProps> = ({
@@ -17,6 +18,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   notifications,
   onMarkAllAsRead,
   onSendCustomNotification,
+  userRole,
 }) => {
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
@@ -103,49 +105,51 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
           )}
         </div>
 
-        {/* Push Alert Trigger Form Simulator */}
-        <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
-          <h4 className="text-xs font-bold text-blue-600 dark:text-blue-400 mb-2 flex items-center space-x-1">
-            <Send className="w-3.5 h-3.5" />
-            <span>Simulate Critical Update Push Notification</span>
-          </h4>
+        {/* Push Alert Trigger Form Simulator (Staff & Admin only) */}
+        {userRole !== 'Student' && (
+          <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
+            <h4 className="text-xs font-bold text-blue-600 dark:text-blue-400 mb-2 flex items-center space-x-1">
+              <Send className="w-3.5 h-3.5" />
+              <span>Simulate Critical Update Push Notification</span>
+            </h4>
 
-          <form onSubmit={handleSendSubmit} className="space-y-2 text-xs">
-            <input
-              type="text"
-              placeholder="Notification Title (e.g. Schedule Change)"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-            <input
-              type="text"
-              placeholder="Message body..."
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-            <div className="flex space-x-2">
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value as any)}
-                className="w-1/2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2 text-[11px] text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                <option value="Compliance">Compliance</option>
-                <option value="Grade">Grade</option>
-                <option value="Attendance">Attendance</option>
-                <option value="System">System</option>
-                <option value="Security">Security</option>
-              </select>
-              <button
-                type="submit"
-                className="w-1/2 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-md shadow-blue-500/20 transition"
-              >
-                Broadcast Push
-              </button>
-            </div>
-          </form>
-        </div>
+            <form onSubmit={handleSendSubmit} className="space-y-2 text-xs">
+              <input
+                type="text"
+                placeholder="Notification Title (e.g. Schedule Change)"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <input
+                type="text"
+                placeholder="Message body..."
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <div className="flex space-x-2">
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value as any)}
+                  className="w-1/2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2 text-[11px] text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="Compliance">Compliance</option>
+                  <option value="Grade">Grade</option>
+                  <option value="Attendance">Attendance</option>
+                  <option value="System">System</option>
+                  <option value="Security">Security</option>
+                </select>
+                <button
+                  type="submit"
+                  className="w-1/2 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-md shadow-blue-500/20 transition"
+                >
+                  Broadcast Push
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -76,6 +76,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const adminMenuItems = [
     { id: 'dashboard', label: t(currentLang, 'dashboard'), icon: LayoutDashboard, allowed: true },
+    { id: 'news', label: 'News & Events', icon: Bell, allowed: true },
     { id: 'schedules', label: 'Class Schedules & Curriculum', icon: Calendar, allowed: true },
     { id: 'gradebook', label: t(currentLang, 'gradebook'), icon: BookOpenCheck, allowed: permissions.manageGrades || permissions.approveGrades },
     { id: 'attendance', label: t(currentLang, 'attendance'), icon: CalendarCheck, allowed: permissions.takeAttendance },

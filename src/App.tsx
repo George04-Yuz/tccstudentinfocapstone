@@ -33,6 +33,7 @@ import {
   PushNotification,
   RolePermissions,
   Language,
+  NewsItem,
 } from './types';
 
 import {
@@ -45,7 +46,7 @@ import {
   initialAuditLogs,
   initialNotifications,
 } from './data/mockData';
-import { initialInstructors, initialDepartmentSchedules } from './data/curriculumData';
+import { initialInstructors, initialDepartmentSchedules, initialNewsItems } from './data/mockData';
 import { initTheme } from './utils/theme';
 
 export default function App() {
@@ -66,6 +67,7 @@ export default function App() {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(initialAttendance);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(initialAuditLogs);
   const [notifications, setNotifications] = useState<PushNotification[]>(initialNotifications);
+  const [newsList, setNewsList] = useState<NewsItem[]>(initialNewsItems);
   const [permissions, setPermissions] = useState<Record<string, RolePermissions>>(defaultRolePermissions);
 
   // Modal Controls
@@ -387,6 +389,8 @@ export default function App() {
               activeTab={activeTab}
               onSelectTab={setActiveTab}
               students={students}
+              newsList={newsList}
+              setNewsList={setNewsList}
             />
           )}
 
@@ -521,6 +525,19 @@ export default function App() {
             />
           )}
 
+          {currentUser?.role !== 'Student' && activeTab === 'news' && (
+            <StudentDashboard
+              currentUser={currentUser}
+              notifications={notifications}
+              onUpdateUser={handleStudentSelfProfileUpdate}
+              activeTab={activeTab}
+              onSelectTab={setActiveTab}
+              students={students}
+              newsList={newsList}
+              setNewsList={setNewsList}
+            />
+          )}
+          
           {currentUser?.role !== 'Student' && activeTab === 'backups' && (
             <BackupManager currentLang={currentLang} />
           )}
@@ -566,6 +583,7 @@ export default function App() {
         notifications={notifications}
         onMarkAllAsRead={handleMarkNotifsRead}
         onSendCustomNotification={handleSendCustomNotif}
+        userRole={currentUser?.role}
       />
 
       <AIAssistantModal
