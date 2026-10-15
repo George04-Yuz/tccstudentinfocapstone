@@ -168,7 +168,7 @@ jobs:
             exit 1
           }
 
-          echo "RELEASE_STORE_FILE=app/release.keystore" >> "$GITHUB_WORKSPACE/android/gradle.properties"
+          echo "RELEASE_STORE_FILE=release.keystore" >> "$GITHUB_WORKSPACE/android/gradle.properties"
 
           if command -v keytool >/dev/null 2>&1; then
             if keytool -list -v -keystore "$GITHUB_WORKSPACE/android/app/release.keystore" -storepass "${RELEASE_STORE_PASSWORD}" >/dev/null 2>&1; then
