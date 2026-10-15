@@ -64,7 +64,7 @@ jobs:
             platform-tools
             platforms;android-33
             build-tools;33.0.2
-            cmdline-tools;9.0.0
+            cmdline-tools;latest
           accept-licenses: true
 
       - name: Setup Gradle
