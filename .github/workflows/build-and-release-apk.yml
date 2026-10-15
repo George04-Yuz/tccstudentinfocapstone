@@ -79,8 +79,8 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/android"
           cat > "$GITHUB_WORKSPACE/android/variables.gradle" <<'EOF'
           ext {
-              compileSdkVersion = 33
-              targetSdkVersion  = 33
+              compileSdkVersion = 34
+              targetSdkVersion  = 34
               minSdkVersion     = 21
 
               androidxAppCompatVersion = "1.6.1"
