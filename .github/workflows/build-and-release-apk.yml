@@ -57,6 +57,15 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          api-level: 33
+          build-tools: 33.0.2
+          components: |
+            platform-tools
+            platforms;android-33
+            build-tools;33.0.2
+            cmdline-tools;9.0.0
+          accept-licenses: true
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
@@ -126,7 +135,7 @@ jobs:
             Welcome to the official manual download release for **Torres Capitol College Student Information System**!
 
             ### 📥 Download Assets
-            - **[Torres-Capitol-College-SIS.apk](https://github.com/${{ github.repository }}/releases/download/${{ steps.release_tag.outputs.tag }}/Torres-Capitol-College-SIS.apk)** (Direct Android Installable APK)
+            - **[Torres-Capitol-College-SIS.apk](https://github.com/${{ github.repository }}/releases/download/${{ steps.release_tag.outputs.tag }}/Torres-Capitol-College-SIS.apk)** (Direct Andro[...]
             - **SHA256SUMS.txt** (Verification Checksum)
 
             ---
