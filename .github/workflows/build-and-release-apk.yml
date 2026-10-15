@@ -58,11 +58,11 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
         with:
-          api-level: 34
-          build-tools: 34.0.0
+          api-level: 36
+          build-tools: 36.0.0
           components: |
             platform-tools
-            platforms;android-34
+            platforms;android-36
             build-tools;34.0.0
             cmdline-tools;latest
           accept-licenses: true
@@ -79,11 +79,11 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/android"
           cat > "$GITHUB_WORKSPACE/android/variables.gradle" <<'EOF'
           ext {
-              compileSdkVersion = 34
-              targetSdkVersion  = 34
+              compileSdkVersion = 36
+              targetSdkVersion  = 36
               minSdkVersion     = 21
 
-              androidxAppCompatVersion = "1.6.1"
+              androidxAppCompatVersion = "1.7.0"
               androidxCoordinatorLayoutVersion = "1.2.0"
               coreSplashScreenVersion = "1.0.0"
               junitVersion = "4.13.2"
