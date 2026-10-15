@@ -1,0 +1,150 @@
+name: Build & Release Android APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build Type (release or debug)'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - release
+          - debug
+      tag_name:
+        description: 'Release Tag (leave empty to use existing or default v1.0.0)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Build Android APK & Publish Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Node Dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Build Web Application
+        run: npm run build
+
+      - name: Sync Capacitor Android
+        run: npx cap sync android
+
+      - name: Set up Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Grant Execute Permission to gradlew
+        run: chmod +x android/gradlew
+
+      - name: Build APK with Gradle
+        run: |
+          cd android
+          if [ "${{ github.event.inputs.build_type }}" = "debug" ]; then
+            echo "Building Debug APK..."
+            ./gradlew assembleDebug --stacktrace
+            APK_PATH=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
+          else
+            echo "Building Release APK..."
+            ./gradlew assembleRelease --stacktrace
+            APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          fi
+          
+          cd ..
+          echo "Found APK at: android/$APK_PATH"
+          mkdir -p dist-apk
+          cp "android/$APK_PATH" "dist-apk/Torres-Capitol-College-SIS.apk"
+          
+          # Compute checksums
+          cd dist-apk
+          sha256sum Torres-Capitol-College-SIS.apk > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Upload APK as Workflow Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Torres-Capitol-College-SIS-APK
+          path: dist-apk/Torres-Capitol-College-SIS.apk
+          retention-days: 30
+
+      - name: Determine Release Tag
+        id: release_tag
+        run: |
+          if [ -n "${{ github.event.inputs.tag_name }}" ]; then
+            TAG="${{ github.event.inputs.tag_name }}"
+          elif [ -n "${{ github.ref_name }}" ] && [[ "${{ github.ref_name }}" == v* ]]; then
+            TAG="${{ github.ref_name }}"
+          elif [ -n "${{ github.event.release.tag_name }}" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+          else
+            TAG="v1.0.0-$(date +'%Y%m%d%H%M')"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Publish APK to GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+        with:
+          tag_name: ${{ steps.release_tag.outputs.tag }}
+          name: "Torres Capitol College SIS ${{ steps.release_tag.outputs.tag }}"
+          files: |
+            dist-apk/Torres-Capitol-College-SIS.apk
+            dist-apk/SHA256SUMS.txt
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## 🎓 Torres Capitol College SIS - Android APK Release
+
+            Welcome to the official manual download release for **Torres Capitol College Student Information System**!
+
+            ### 📥 Download Assets
+            - **[Torres-Capitol-College-SIS.apk](https://github.com/${{ github.repository }}/releases/download/${{ steps.release_tag.outputs.tag }}/Torres-Capitol-College-SIS.apk)** (Direct Android Installable APK)
+            - **SHA256SUMS.txt** (Verification Checksum)
+
+            ---
+
+            ### 📱 How to Manually Install on Android:
+            1. Click **`Torres-Capitol-College-SIS.apk`** above from your Android phone or tablet.
+            2. If your browser prompts *“File might be harmful”* or *“Do you want to download Torres-Capitol-College-SIS.apk anyway?”*, tap **Download anyway**.
+            3. Once finished, tap **Open** or find the file in your **Downloads** folder.
+            4. If prompted to allow unknown sources:
+               - Tap **Settings** → toggle **Allow from this source** (Chrome / Files).
+               - Tap back and select **Install**.
+            5. Open **Torres Capitol College SIS** and log in with your faculty, admin, or student account!
+
+            ### ✨ Included Features:
+            - 📊 Real-time Gradebook & Attendance Tracking
+            - 📷 Built-in Camera support for Student ID & Attendance QR Scanning
+            - 🛡️ Role-Based Access Control (Admin, Faculty, Registrar, Student)
+            - 📈 Academic Analytics, Dean's List, and Compliance PDF Exports
+            - 🔔 Live Push Notifications & Offline Support
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
