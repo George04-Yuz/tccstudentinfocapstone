@@ -1,6 +1,7 @@
 {
   "installCommand": "npm install --force",
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/api/:path*", "destination": "/api/server" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
