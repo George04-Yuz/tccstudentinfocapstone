@@ -21,6 +21,7 @@ import { AIAssistantModal } from './components/AIAssistantModal';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { ApkDownloadModal } from './components/ApkDownloadModal';
 import { ClassSchedulesAndCurriculum } from './components/ClassSchedulesAndCurriculum';
+import { StaffProfile } from './components/StaffProfile';
 
 import {
   User,
@@ -48,6 +49,7 @@ import {
 } from './data/mockData';
 import { initialInstructors, initialDepartmentSchedules, initialNewsItems } from './data/mockData';
 import { initTheme } from './utils/theme';
+import { loadStaffProfile, saveStaffProfile } from './utils/staffProfiles';
 
 export default function App() {
   // App Global State
@@ -260,6 +262,16 @@ export default function App() {
     );
   };
 
+  const handleStaffProfileUpdate = (updated: Pick<User, 'name' | 'email' | 'department' | 'avatar'>): boolean => {
+    if (!currentUser || currentUser.role === 'Student') return false;
+    if (!saveStaffProfile(currentUser.id, updated)) return false;
+
+    setCurrentUser((prev) => (prev ? { ...prev, ...updated } : null));
+    if (currentUser.role !== 'Admin') setSelectedDepartment(updated.department);
+    addAuditEntry('STAFF_PROFILE_UPDATED', `Updated staff profile for ${updated.name}`);
+    return true;
+  };
+
   const unreadNotifCount = notifications.filter((n) => !n.read).length;
 
   if (!currentUser) {
@@ -273,14 +285,17 @@ export default function App() {
             return;
           }
 
-          setCurrentUser(user);
-          addAuditEntry('MFA_LOGIN_SUCCESS', `User ${user.name} logged in with verified email OTP code`);
+          const authenticatedUser = user.role === 'Student'
+            ? user
+            : { ...user, ...loadStaffProfile(user.id) };
+          setCurrentUser(authenticatedUser);
+          addAuditEntry('MFA_LOGIN_SUCCESS', `User ${authenticatedUser.name} logged in with verified email OTP code`);
 
           // Auto-detect and filter by department based on profile role and department
           if (user.role === 'Admin') {
             setSelectedDepartment('All Departments');
-          } else if (user.department) {
-            setSelectedDepartment(user.department);
+          } else if (authenticatedUser.department) {
+            setSelectedDepartment(authenticatedUser.department);
           }
 
           if (newStudent) {
@@ -414,6 +429,10 @@ export default function App() {
                 setActiveTab('analytics');
               }}
             />
+          )}
+
+          {currentUser?.role !== 'Student' && activeTab === 'staff-profile' && (
+            <StaffProfile currentUser={currentUser} onSave={handleStaffProfileUpdate} />
           )}
 
           {currentUser?.role !== 'Student' && activeTab === 'schedules' && (

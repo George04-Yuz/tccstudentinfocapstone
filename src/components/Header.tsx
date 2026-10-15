@@ -155,7 +155,9 @@ export const Header: React.FC<HeaderProps> = ({
           {currentUser ? (
             <div className="bg-[#111827] text-white rounded-full px-2.5 sm:px-3 py-1 flex items-center space-x-2 sm:space-x-3 shadow-md border border-slate-800">
               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-800 text-white font-extrabold text-xs flex items-center justify-center border border-slate-700 shrink-0">
-                {userInitials}
+                {currentUser.avatar ? (
+                  <img src={currentUser.avatar} alt="" className="w-full h-full rounded-full object-cover" />
+                ) : userInitials}
               </div>
               <div className="pr-1 text-left hidden sm:block">
                 <div className="text-xs font-black tracking-wide text-white leading-tight flex items-center space-x-1.5">

@@ -5,6 +5,7 @@ import { t } from '../utils/i18n';
 import { initialUsers, initialStudents, AUTHORIZED_STUDENT_WHITELIST } from '../data/mockData';
 import { EmailVerification } from './EmailVerification';
 import { sendEmailOtpApi } from '../services/emailService';
+import { loadStaffProfiles } from '../utils/staffProfiles';
 import { ShieldCheck, Lock, Smartphone, KeyRound, AlertCircle, ArrowRight, CheckCircle2, UserPlus, Mail, Building2, HelpCircle, GraduationCap, Upload, Camera, Copy, Check, RefreshCw, ExternalLink, Phone, MapPin, ShieldAlert, Heart } from 'lucide-react';
 
 interface LoginPageProps {
@@ -92,8 +93,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 }) => {
   const [portalType, setPortalType] = useState<'staff' | 'student'>('student');
   const [mode, setMode] = useState<'login' | 'register' | 'forgot' | 'student-otp'>('login');
-  const [selectedUser, setSelectedUser] = useState<User>(initialUsers[0]);
-  const [staffEmail, setStaffEmail] = useState(initialUsers[0].email);
+  const [staffUsers] = useState<User[]>(() => {
+    const savedProfiles = loadStaffProfiles();
+    return initialUsers.map((user) => ({ ...user, ...savedProfiles[user.id] }));
+  });
+  const [selectedUser, setSelectedUser] = useState<User>(staffUsers[0]);
+  const [staffEmail, setStaffEmail] = useState(staffUsers[0].email);
   const [password, setPassword] = useState('');
   const [step, setStep] = useState<'credentials' | 'mfa'>('credentials');
   const [mfaCode, setMfaCode] = useState('');
@@ -1016,12 +1021,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                           <select
                             value={selectedUser.id}
                             onChange={(e) => {
-                              const u = initialUsers.find((x) => x.id === e.target.value);
+                              const u = staffUsers.find((x) => x.id === e.target.value);
                               if (u) handleQuickDemoSelect(u);
                             }}
                             className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
                           >
-                            {initialUsers.map((u) => (
+                            {staffUsers.map((u) => (
                               <option key={u.id} value={u.id}>
                                 {u.name} ({u.role} - {u.department})
                               </option>
