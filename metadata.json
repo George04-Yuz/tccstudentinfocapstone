@@ -1,0 +1,6 @@
+{
+  "name": "Torres Capitol College SIS",
+  "description": "Comprehensive Student Information System for Torres Capitol College featuring faculty grade & attendance management, real-time analytics, RBAC, audit logs, MFA, compliance reports, and multi-language support.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

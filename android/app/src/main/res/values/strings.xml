@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Torres Capitol College SIS</string>
+    <string name="title_activity_main">Torres Capitol College SIS</string>
+    <string name="package_name">edu.torrescapitolcollege.sis</string>
+    <string name="custom_url_scheme">edu.torrescapitolcollege.sis</string>
+</resources>
