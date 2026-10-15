@@ -86,6 +86,7 @@ jobs:
       - name: Grant Execute Permission to gradlew
         run: chmod +x android/gradlew
 
+      # Create non-secret Android variables the build expects
       - name: Create android/variables.gradle
         run: |
           mkdir -p "$GITHUB_WORKSPACE/android"
@@ -94,6 +95,7 @@ jobs:
               compileSdkVersion = 33
               targetSdkVersion  = 33
               minSdkVersion     = 21
+
               androidxAppCompatVersion = "1.6.1"
               androidxCoordinatorLayoutVersion = "1.2.0"
               coreSplashScreenVersion = "1.0.0"
@@ -103,6 +105,7 @@ jobs:
           }
           EOF
 
+      # Create gradle.properties with the signing metadata (passwords and alias are injected from secrets)
       - name: Create android/gradle.properties (signing)
         env:
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
@@ -111,22 +114,47 @@ jobs:
         run: |
           mkdir -p "$GITHUB_WORKSPACE/android"
           cat > "$GITHUB_WORKSPACE/android/gradle.properties" <<EOF
+          org.gradle.jvmargs=-Xmx1536m
+          android.useAndroidX=true
+          android.enableJetifier=true
+
           RELEASE_STORE_PASSWORD=${RELEASE_STORE_PASSWORD}
           RELEASE_KEY_ALIAS=${RELEASE_KEY_ALIAS}
           RELEASE_KEY_PASSWORD=${RELEASE_KEY_PASSWORD}
           EOF
 
+      # Restore the keystore from a base64 secret robustly (strips CR/LF and reports clear errors)
       - name: Restore release keystore (from base64)
         env:
           RELEASE_STORE_FILE_B64: ${{ secrets.RELEASE_STORE_FILE_B64 }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
         run: |
-          if [ -n "${RELEASE_STORE_FILE_B64}" ]; then
-            echo "Restoring keystore from secret..."
-            mkdir -p "$GITHUB_WORKSPACE/android/app"
-            echo "$RELEASE_STORE_FILE_B64" | base64 --decode > "$GITHUB_WORKSPACE/android/app/release.keystore"
-            echo "RELEASE_STORE_FILE=app/release.keystore" >> "$GITHUB_WORKSPACE/android/gradle.properties"
-          else
+          if [ -z "${RELEASE_STORE_FILE_B64}" ]; then
             echo "No RELEASE_STORE_FILE_B64 secret set; skipping keystore restore."
+            exit 0
+          fi
+
+          echo "Restoring keystore from secret..."
+          mkdir -p "$GITHUB_WORKSPACE/android/app"
+
+          # strip CR/LF/newlines then decode. Exit with a helpful message if decode fails.
+          printf '%s' "$RELEASE_STORE_FILE_B64" | tr -d '\r\n' | base64 --decode > "$GITHUB_WORKSPACE/android/app/release.keystore" || {
+            echo "ERROR: Keystore base64 decode failed. Ensure RELEASE_STORE_FILE_B64 contains a single-line base64 string of the .keystore file with no quotes.";
+            exit 1;
+          }
+
+          # point Gradle to the keystore file
+          echo "RELEASE_STORE_FILE=app/release.keystore" >> "$GITHUB_WORKSPACE/android/gradle.properties"
+
+          # Optional quick verification (check the keystore can be opened with the provided password)
+          if command -v keytool >/dev/null 2>&1; then
+            if keytool -list -v -keystore "$GITHUB_WORKSPACE/android/app/release.keystore" -storepass "${RELEASE_STORE_PASSWORD}" >/dev/null 2>&1; then
+              echo "Keystore restored and verified."
+            else
+              echo "Warning: keytool verification failed. Check RELEASE_STORE_PASSWORD or keystore contents."
+            fi
+          else
+            echo "keytool not available to verify keystore; continuing."
           fi
 
       - name: Build APK with Gradle
@@ -141,17 +169,17 @@ jobs:
             ./gradlew assembleRelease --stacktrace
             APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
           fi
-          
+
           cd ..
           echo "Found APK at: android/$APK_PATH"
           mkdir -p dist-apk
           cp "android/$APK_PATH" "dist-apk/Torres-Capitol-College-SIS.apk"
-          
+
           # Compute checksums
           cd dist-apk
           sha256sum Torres-Capitol-College-SIS.apk > SHA256SUMS.txt
           cat SHA256SUMS.txt
-    
+
       - name: Upload APK as Workflow Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -191,25 +219,15 @@ jobs:
             Welcome to the official manual download release for **Torres Capitol College Student Information System**!
 
             ### 📥 Download Assets
-            - **[Torres-Capitol-College-SIS.apk](https://github.com/${{ github.repository }}/releases/download/${{ steps.release_tag.outputs.tag }}/Torres-Capitol-College-SIS.apk)** (Direct Andro[...]
-            - **SHA256SUMS.txt** (Verification Checksum)
+            - **[Torres-Capitol-College-SIS.apk](https://github.com/${{ github.repository }}/releases/download/${{ steps.release_tag.outputs.tag }}/Torres-Capitol-College-SIS.apk)**
+            - **SHA256SUMS.txt**
 
             ---
 
             ### 📱 How to Manually Install on Android:
             1. Click **`Torres-Capitol-College-SIS.apk`** above from your Android phone or tablet.
-            2. If your browser prompts *“File might be harmful”* or *“Do you want to download Torres-Capitol-College-SIS.apk anyway?”*, tap **Download anyway**.
-            3. Once finished, tap **Open** or find the file in your **Downloads** folder.
-            4. If prompted to allow unknown sources:
-               - Tap **Settings** → toggle **Allow from this source** (Chrome / Files).
-               - Tap back and select **Install**.
-            5. Open **Torres Capitol College SIS** and log in with your faculty, admin, or student account!
+            2. If prompted to allow unknown sources, follow the system prompts.
+            3. Install and launch the app.
 
-            ### ✨ Included Features:
-            - 📊 Real-time Gradebook & Attendance Tracking
-            - 📷 Built-in Camera support for Student ID & Attendance QR Scanning
-            - 🛡️ Role-Based Access Control (Admin, Faculty, Registrar, Student)
-            - 📈 Academic Analytics, Dean's List, and Compliance PDF Exports
-            - 🔔 Live Push Notifications & Offline Support
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
