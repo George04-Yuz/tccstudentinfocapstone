@@ -81,7 +81,7 @@ jobs:
           ext {
               compileSdkVersion = 36
               targetSdkVersion  = 36
-              minSdkVersion     = 21
+              minSdkVersion     = 24
 
               androidxAppCompatVersion = "1.7.0"
               androidxCoordinatorLayoutVersion = "1.2.0"
