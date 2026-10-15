@@ -49,21 +49,21 @@ jobs:
       - name: Sync Capacitor Android
         run: node node_modules/@capacitor/cli/bin/capacitor sync android
 
-      - name: Set up Java JDK 17
+      - name: Set up Java JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: 17
+          java-version: 21
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
         with:
-          api-level: 33
-          build-tools: 33.0.2
+          api-level: 36
+          build-tools: 36.0.0
           components: |
             platform-tools
-            platforms;android-33
-            build-tools;33.0.2
+            platforms;android-36
+            build-tools;36.0.0
             cmdline-tools;latest
           accept-licenses: true
 
@@ -86,17 +86,17 @@ jobs:
       - name: Grant Execute Permission to gradlew
         run: chmod +x android/gradlew
 
-      # Create non-secret Android variables the build expects
+      # Create non-secret Android variables the build expects (Locked to API 36 / MinSdk 24)
       - name: Create android/variables.gradle
         run: |
           mkdir -p "$GITHUB_WORKSPACE/android"
           cat > "$GITHUB_WORKSPACE/android/variables.gradle" <<'EOF'
           ext {
-              compileSdkVersion = 33
-              targetSdkVersion  = 33
-              minSdkVersion     = 21
+              compileSdkVersion = 36
+              targetSdkVersion  = 36
+              minSdkVersion     = 24
 
-              androidxAppCompatVersion = "1.6.1"
+              androidxAppCompatVersion = "1.7.0"
               androidxCoordinatorLayoutVersion = "1.2.0"
               coreSplashScreenVersion = "1.0.0"
               junitVersion = "4.13.2"
@@ -144,7 +144,7 @@ jobs:
           echo "Restoring keystore from secret..."
           mkdir -p "$GITHUB_WORKSPACE/android/app"
 
-          CLEAN_B64="$(printf '%s' "$RELEASE_STORE_FILE_B64" | tr -d '\r\n')"
+          CLEAN_B64="$(printf '\%s' "$RELEASE_STORE_FILE_B64" | tr -d '\r\n')"
 
           # Strip accidental surrounding quotes if they were included in the secret value.
           if [ "${CLEAN_B64:0:1}" = '"' ] && [ "${CLEAN_B64: -1}" = '"' ]; then
@@ -154,13 +154,13 @@ jobs:
             CLEAN_B64="${CLEAN_B64:1:${#CLEAN_B64}-2}"
           fi
 
-          if ! printf '%s' "$CLEAN_B64" | grep -Eq '^[A-Za-z0-9+/=]+$'; then
+          if ! printf '%s' "$CLEAN_B64" \vert{} grep -Eq '^[A-Za-z0-9+/=]+$'; then
             echo "ERROR: RELEASE_STORE_FILE_B64 is malformed. Ensure it is a single-line base64 string of the .keystore file with no quotes or extra whitespace."
             echo "Tip: generate it with: base64 --wrap=0 release.keystore (Linux) or openssl base64 -A -in release.keystore (macOS)."
             exit 1
           fi
 
-          printf '%s' "$CLEAN_B64" | base64 --decode > "$GITHUB_WORKSPACE/android/app/release.keystore" || {
+          printf '%s' "$CLEAN_B64" \vert{} base64 --decode > "$GITHUB_WORKSPACE/android/app/release.keystore" || {
             echo "ERROR: Keystore base64 decode failed. Ensure RELEASE_STORE_FILE_B64 contains a single-line base64 string of the .keystore file with no quotes."
             exit 1
           }
