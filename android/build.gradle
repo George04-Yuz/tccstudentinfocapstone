@@ -15,7 +15,7 @@ buildscript {
     }
 }
 
-apply from: rootProject.file('variables.gradle')
+def varsFile = rootProject.file('variables.gradle') if (varsFile.exists()) { apply from: varsFile } else { println "Info: variables.gradle not found at ${varsFile}; skipping." }
 
 allprojects {
     repositories {
