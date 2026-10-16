@@ -38,7 +38,7 @@ export const ApkDownloadModal: React.FC<ApkDownloadModalProps> = ({
   // Default GitHub repository URL and release link
   const [githubRepoUrl, setGithubRepoUrl] = useState('https://github.com/George04-Yuz/tccstudentinfocapstone');
   
-  const apkDownloadUrl = `${githubRepoUrl.replace(/\/$/, '')}/releases/tag/v1.0.3`;
+  const apkDownloadUrl = `${githubRepoUrl.replace(/\/$/, '')}/releases/latest/download/Torres-Capitol-College-SIS.apk`;
   const releasesPageUrl = `${githubRepoUrl.replace(/\/$/, '')}/releases`;
 
   useEffect(() => {
