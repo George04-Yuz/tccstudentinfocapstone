@@ -11,8 +11,8 @@ We have included `.github/workflows/build-and-release-apk.yml`. You can generate
 ### Option A: Trigger with a Git Tag (Recommended)
 Run these commands from your terminal:
 ```bash
-git tag -a v1.0.0 -m "Release v1.0.0 with Torres Capitol College SIS Android APK"
-git push origin v1.0.0
+git tag -a v1.0.3 -m "Release v1.0.3 with Torres Capitol College SIS Android APK"
+git push origin v1.0.3
 ```
 GitHub Actions will automatically:
 1. Compile the web bundle (`npm run build`).
@@ -20,7 +20,7 @@ GitHub Actions will automatically:
 3. Set up Java 21 and Android SDK 36.
 4. Run `./gradlew assembleRelease` to compile `Torres-Capitol-College-SIS.apk`.
 5. Compute SHA256 checksums.
-6. Create a GitHub Release for `v1.0.0` and attach `Torres-Capitol-College-SIS.apk` for direct public download!
+6. Create a GitHub Release for `v1.0.3` and attach `Torres-Capitol-College-SIS.apk` for direct public download!
 
 ---
 
@@ -31,7 +31,7 @@ GitHub Actions will automatically:
 4. Click **Run workflow** dropdown on the right:
    - Select branch: `main`
    - Build Type: `release` (or `debug`)
-   - Optional Tag: e.g. `v1.0.0`
+   - Optional Tag: e.g. `v1.0.3`
 5. Click the green **Run workflow** button.
 6. A `debug` run uploads an installable test APK as a workflow artifact. A `release` run also publishes a GitHub Release.
 

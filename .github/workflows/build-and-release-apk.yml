@@ -17,7 +17,7 @@ on:
           - release
           - debug
       tag_name:
-        description: 'Release Tag (leave empty to use existing or default v1.0.0)'
+        description: 'Release Tag (leave empty to use existing or default v1.0.3)'
         required: false
         default: ''
 

@@ -38,7 +38,7 @@ export const ApkDownloadModal: React.FC<ApkDownloadModalProps> = ({
   // Default GitHub repository URL and release link
   const [githubRepoUrl, setGithubRepoUrl] = useState('https://github.com/George04-Yuz/tccstudentinfocapstone');
   
-  const apkDownloadUrl = `${githubRepoUrl.replace(/\/$/, '')}/releases/tag/v1.0.0`;
+  const apkDownloadUrl = `${githubRepoUrl.replace(/\/$/, '')}/releases/tag/v1.0.3`;
   const releasesPageUrl = `${githubRepoUrl.replace(/\/$/, '')}/releases`;
 
   useEffect(() => {
@@ -64,7 +64,7 @@ export const ApkDownloadModal: React.FC<ApkDownloadModalProps> = ({
     setTimeout(() => setCopiedUrl(false), 2000);
   };
 
-  const gitTagCommand = `git tag -a v1.0.0 -m "Release v1.0.0 with Android APK" && git push origin v1.0.0`;
+  const gitTagCommand = `git tag -a v1.0.3 -m "Release v1.0.3 with Android APK" && git push origin v1.0.3`;
   const handleCopyCmd = () => {
     navigator.clipboard.writeText(gitTagCommand);
     setCopiedCmd(true);
