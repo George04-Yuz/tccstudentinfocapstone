@@ -64,7 +64,7 @@ export const EmailVerification: React.FC<EmailVerificationProps> = ({
     setIsSending(true);
     setErrorState(null);
     try {
-      const result = await sendEmailOtpApi(email, name, { forceResend });
+      const result = await sendEmailOtpApi(email, name, { forceResend: true })
       setDeliveryInfo(result);
 
       if (!result.success || !result.delivered) {

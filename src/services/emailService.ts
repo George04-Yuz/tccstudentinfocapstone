@@ -58,8 +58,8 @@ async function processQueue() {
     const lastDispatch = dispatchLockMap.get(cleanEmail) || 0;
 
     // Locking Mechanism: 60-second window check to prevent rapid multi-click dispatches
-    if (!forceResend && lastDispatch > 0 && (now - lastDispatch < 60000)) {
-      const remainingSecs = Math.ceil((60000 - (now - lastDispatch)) / 1000);
+    if (!forceResend && lastDispatch > 0 && (now - lastDispatch < 30000)) {
+      const remainingSecs = Math.ceil((30000 - (now - lastDispatch)) / 1000);
       console.info(`[Client Lock] Throttled duplicate OTP request for ${cleanEmail}. ${remainingSecs}s remaining in lock window.`);
       resolve({
         success: true,
@@ -84,7 +84,7 @@ async function processQueue() {
         console.warn('Backend server returned non-OK response:', response.status);
         resolve({
           success: false,
-          message: 'Unable to send a verification code. Please try again later.',
+          message: data?.error || 'Unable to send a verification code. Please try again later.',
           delivered: false,
           smtpConfigured: false,
           errorType: response.status >= 500 ? 'network_error' : 'verification_error',
