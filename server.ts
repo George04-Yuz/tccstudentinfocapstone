@@ -5,6 +5,8 @@ import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 import { sendVerificationEmail, verifySmtpConfiguration } from './src/services/serverEmailService';
 import { registerSharedAppStateApi } from './src/services/sharedAppStateApi';
+import { getSql } from './src/services/db';
+
 
 dotenv.config({ path: ['.env.local', '.env'], override: false });
 // Load blank example values only when local environment variables are not set.
@@ -99,7 +101,7 @@ app.post('/api/send-verification-code', async (req, res) => {
 });
 
 // API Route: Verify Student OTP Code
-app.post('/api/verify-code', (req, res) => {
+app.post('/api/verify-code', async (req, res) => {
   const { email, code } = req.body;
   if (!email || !code) {
     res.status(400).json({
@@ -141,6 +143,17 @@ app.post('/api/verify-code', (req, res) => {
     });
     return;
   }
+  try {
+     const sql = getSql();
+     await sql`
+       INSERT INTO users (email, name, verified_at)
+       VALUES (${cleanEmail}, ${record.name ?? null}, now())
+       ON CONFLICT (email) DO UPDATE
+       SET verified_at = now(), name = COALESCE(EXCLUDED.name, users.name)
+     `;
+   } catch (e) {
+     console.error('Failed to save registered user:', e);
+   }
 
   // Clear OTP on successful verification
   otpStore.delete(cleanEmail);

@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { sendVerificationEmail, verifySmtpConfiguration } from '../src/services/serverEmailService.js';
 import { registerSharedAppStateApi } from '../src/services/sharedAppStateApi.js';
+import { getSql } from '../src/services/db.js';
 
 dotenv.config({ override: true });
 dotenv.config({ path: path.join(process.cwd(), '.env.example'), override: false });
@@ -100,7 +101,7 @@ app.post('/api/send-verification-code', async (req, res) => {
 });
 
 // API Route: Verify Student OTP Code
-app.post('/api/verify-code', (req, res) => {
+app.post('/api/verify-code', async (req, res) => {
   const { email, code } = req.body;
   if (!email || !code) {
     res.status(400).json({
@@ -142,7 +143,17 @@ app.post('/api/verify-code', (req, res) => {
     });
     return;
   }
-
+  try {
+     const sql = getSql();
+     await sql`
+       INSERT INTO users (email, name, verified_at)
+       VALUES (${cleanEmail}, ${record.name ?? null}, now())
+       ON CONFLICT (email) DO UPDATE
+       SET verified_at = now(), name = COALESCE(EXCLUDED.name, users.name)
+     `;
+   } catch (e) {
+     console.error('Failed to save registered user:', e);
+   }
   // Clear OTP on successful verification
   otpStore.delete(cleanEmail);
   res.json({ success: true, verified: true, message: 'Verification successful.' });
