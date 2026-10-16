@@ -56,16 +56,16 @@ app.post('/api/send-verification-code', async (req, res) => {
     const existing = otpStore.get(cleanEmail);
 
     // Server-side Deduplication: Prevent sending multiple emails to the same address within 30 seconds
-    if (existing && (now - existing.createdAt < 30000)) {
-      res.json({
-        success: true,
-        message: `A security verification code has been sent directly to ${cleanEmail}. Please check your email inbox.`,
-        delivered: true,
-        expiresInSeconds: Math.round((existing.expiresAt - now) / 1000),
-        smtpConfigured: true,
-      });
-      return;
-    }
+    if (existing && now - existing.createdAt < 30000) {
+     const wait = Math.ceil((30000 - (now - existing.createdAt)) / 1000);
+     res.status(429).json({
+       success: false,
+       errorType: 'rate_limited',
+       error: `Please wait ${wait}s before requesting another code.`,
+       retryAfterSeconds: wait,
+     });
+     return;
+   }
 
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = now + 10 * 60 * 1000; // 10 minutes
