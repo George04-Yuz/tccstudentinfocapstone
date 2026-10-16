@@ -2,8 +2,8 @@ import express from 'express';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import path from 'path';
-import { sendVerificationEmail, verifySmtpConfiguration } from '../src/services/serverEmailService';
-import { registerSharedAppStateApi } from '../src/services/sharedAppStateApi';
+import { sendVerificationEmail, verifySmtpConfiguration } from '../src/services/serverEmailService.js';
+import { registerSharedAppStateApi } from '../src/services/sharedAppStateApi.js';
 
 dotenv.config({ override: true });
 dotenv.config({ path: path.join(process.cwd(), '.env.example'), override: false });

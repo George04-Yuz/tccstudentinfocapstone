@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from 'express';
-import { readSharedAppState, SharedAppState, writeSharedAppState } from './sharedAppState';
+import { readSharedAppState, SharedAppState, writeSharedAppState } from './sharedAppState.js';
 
 export function registerSharedAppStateApi(app: Express) {
   app.use('/api', (req, res, next) => {
